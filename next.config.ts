@@ -1,8 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pin the workspace root to this project. Without it, a stray lockfile in a
+  // parent folder (e.g. the user's home directory) can make Turbopack treat
+  // that folder as the root and watch far more than the project.
+  turbopack: {
+    root: path.resolve(process.cwd()),
+  },
   async headers() {
     return [
       {

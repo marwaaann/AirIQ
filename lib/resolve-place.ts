@@ -4,7 +4,8 @@ import { cache } from "react";
 
 import { geocode } from "@/lib/openmeteo";
 import { placeSubtitle } from "@/lib/place";
-import { formatCoords, MY_LOCATION_SLUG_NAME, prettifySlugName, slugifyName, type ParsedSlug } from "@/lib/slug";
+import { labelKindForSlugName, prettifySlugName, slugifyName, type LabelKind, type ParsedSlug } from "@/lib/slug";
+import { fallbackPlaceName } from "@/lib/place";
 
 export interface ResolvedPlace {
   slug: string;
@@ -12,8 +13,8 @@ export interface ResolvedPlace {
   subtitle?: string;
   latitude: number;
   longitude: number;
-  /** Came from browser geolocation; the client resolves a label in the background. */
-  isMyLocation: boolean;
+  /** Unnamed place (geolocation or map point); the client resolves a label in the background. */
+  labelKind: LabelKind | null;
 }
 
 /** Great-circle distance in km. */
@@ -33,11 +34,12 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): num
 export const resolvePlace = cache(async (slug: string, parsed: ParsedSlug): Promise<ResolvedPlace> => {
   const base = { slug, latitude: parsed.latitude, longitude: parsed.longitude };
 
-  if (parsed.name === MY_LOCATION_SLUG_NAME) {
-    return { ...base, name: `Your location (${formatCoords(parsed.latitude, parsed.longitude)})`, isMyLocation: true };
+  const labelKind = labelKindForSlugName(parsed.name);
+  if (labelKind) {
+    return { ...base, name: fallbackPlaceName(labelKind, parsed.latitude, parsed.longitude), labelKind };
   }
 
-  const fallback: ResolvedPlace = { ...base, name: prettifySlugName(parsed.name), isMyLocation: false };
+  const fallback: ResolvedPlace = { ...base, name: prettifySlugName(parsed.name), labelKind: null };
   try {
     const results = await geocode(parsed.name.replace(/-/g, " "), 10);
     let best: (typeof results)[number] | null = null;

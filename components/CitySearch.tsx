@@ -17,13 +17,17 @@ interface CitySearchProps {
   variant?: "hero" | "compact";
   /** Called after navigation starts (e.g. to close a mobile drawer). */
   onSelected?: () => void;
+  /** When set, picking a place calls this instead of navigating to its city page. */
+  onPick?: (place: GeoLocation) => void;
+  /** Accessible label and placeholder override. */
+  label?: string;
 }
 
 /**
  * City autocomplete (WAI-ARIA combobox with listbox popup).
  * Debounced 300 ms against /api/geocode; up/down/enter/escape supported.
  */
-export function CitySearch({ variant = "compact", onSelected }: CitySearchProps) {
+export function CitySearch({ variant = "compact", onSelected, onPick, label = "Search for a city" }: CitySearchProps) {
   const router = useRouter();
   const [, setActiveCity] = useActiveCity();
   const id = useId();
@@ -50,6 +54,14 @@ export function CitySearch({ variant = "compact", onSelected }: CitySearchProps)
   const activeIndex = active >= 0 && active < results.length ? active : -1;
 
   function select(place: GeoLocation) {
+    if (onPick) {
+      setQuery("");
+      setOpen(false);
+      setActive(-1);
+      inputRef.current?.blur();
+      onPick(place);
+      return;
+    }
     const slug = makeCitySlug(place.name, place.latitude, place.longitude);
     setActiveCity({
       slug,
@@ -112,7 +124,7 @@ export function CitySearch({ variant = "compact", onSelected }: CitySearchProps)
   return (
     <div className="relative w-full">
       <label htmlFor={`${id}-input`} className="sr-only">
-        Search for a city
+        {label}
       </label>
       <div
         className={`flex items-center gap-2 rounded-xl border border-border bg-surface focus-within:border-[var(--focus)] ${hero ? "h-14 px-4 text-lg shadow-sm" : "h-10 px-3 text-sm"}`}

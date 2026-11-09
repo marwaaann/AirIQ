@@ -8,6 +8,17 @@
 
 /** Slug name used for browser-geolocation places before a label is known. */
 export const MY_LOCATION_SLUG_NAME = "your-location";
+/** Slug name for an unnamed point picked on the map. */
+export const MAP_POINT_SLUG_NAME = "map-point";
+
+/** Places whose name is resolved client-side from coordinates. */
+export type LabelKind = "my-location" | "map-point";
+
+export function labelKindForSlugName(name: string): LabelKind | null {
+  if (name === MY_LOCATION_SLUG_NAME) return "my-location";
+  if (name === MAP_POINT_SLUG_NAME) return "map-point";
+  return null;
+}
 
 export interface ParsedSlug {
   /** The name part (still slugified). */

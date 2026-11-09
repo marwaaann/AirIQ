@@ -13,7 +13,7 @@ import { useReverseLabel } from "@/hooks/useGeolocation";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
-import { formatCoords, makeCitySlug } from "@/lib/slug";
+import { formatCoords, makeCitySlug, type LabelKind } from "@/lib/slug";
 import type { AirResponse } from "@/types/api";
 import type { AqiScale } from "@/types/air";
 import type { SavedCity } from "@/types/city";
@@ -24,7 +24,7 @@ export interface CityPlace {
   subtitle?: string;
   latitude: number;
   longitude: number;
-  isMyLocation: boolean;
+  labelKind: LabelKind | null;
 }
 
 function DashboardSkeleton() {
@@ -72,11 +72,11 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   const [scale] = useAqiScale();
   const [, setActiveCity] = useActiveCity();
   const { data, error, isLoading, isValidating, mutate } = useAir(place.latitude, place.longitude);
-  const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.isMyLocation);
+  const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
 
-  const name = place.isMyLocation ? label.name : place.name;
-  const subtitle = place.isMyLocation ? label.subtitle : place.subtitle;
-  const slug = place.isMyLocation && resolved ? makeCitySlug(label.name, place.latitude, place.longitude) : place.slug;
+  const name = place.labelKind ? label.name : place.name;
+  const subtitle = place.labelKind ? label.subtitle : place.subtitle;
+  const slug = place.labelKind && resolved ? makeCitySlug(label.name, place.latitude, place.longitude) : place.slug;
 
   const city: SavedCity = useMemo(
     () => ({ slug, name, subtitle, latitude: place.latitude, longitude: place.longitude }),
@@ -90,10 +90,10 @@ export function CityDashboard({ place }: { place: CityPlace }) {
 
   // Once a geolocated place has a real name, make the URL shareable without reloading.
   useEffect(() => {
-    if (place.isMyLocation && resolved && window.location.pathname !== `/city/${slug}`) {
+    if (place.labelKind && resolved && window.location.pathname !== `/city/${slug}`) {
       window.history.replaceState(null, "", `/city/${slug}`);
     }
-  }, [place.isMyLocation, resolved, slug]);
+  }, [place.labelKind, resolved, slug]);
 
   const h = data ? headline(data.current, scale) : null;
   const recentByPollutant = useMemo(() => {

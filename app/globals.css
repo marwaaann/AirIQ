@@ -117,3 +117,109 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Full-bleed pages (map): drop the content max-width, padding and footer.  */
+/* ---------------------------------------------------------------------- */
+body:has([data-fullbleed]) > main {
+  max-width: none;
+  padding: 0;
+}
+body:has([data-fullbleed]) > footer {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Leaflet map                                                              */
+/* ---------------------------------------------------------------------- */
+.airiq-map.leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-sans);
+}
+.leaflet-container .airiq-divicon {
+  background: transparent;
+  border: none;
+}
+.airiq-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px 0 0;
+  border-radius: 7px;
+  overflow: hidden;
+  font: 700 12px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 1.5px rgba(0, 0, 0, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.airiq-badge-pattern {
+  display: inline-block;
+  width: 7px;
+  height: 100%;
+  border-right: 1px solid rgba(0, 0, 0, 0.25);
+}
+.airiq-station {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 2px var(--text),
+    0 2px 5px rgba(0, 0, 0, 0.4);
+}
+.airiq-station-core {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 2px solid var(--surface);
+  font: 700 11px/1 var(--font-mono);
+}
+.leaflet-marker-icon:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+/* Scoped to .airiq-map for higher specificity than leaflet.css, which loads later. */
+.airiq-map .leaflet-popup-content-wrapper,
+.airiq-map .leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+}
+.airiq-map .leaflet-popup-content {
+  margin: 12px 14px;
+  line-height: 1.4;
+}
+.airiq-map .leaflet-popup-content p {
+  margin: 0;
+}
+.airiq-map.leaflet-container a.leaflet-popup-close-button {
+  color: var(--muted);
+}
+.airiq-map .leaflet-bar a,
+.airiq-map .leaflet-bar a:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-bottom-color: var(--border);
+}
+.airiq-map.leaflet-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+}
+.airiq-map.leaflet-container .leaflet-control-attribution a {
+  color: var(--text);
+}
+/* Mobile: keep the attribution above the collapsed bottom sheet. */
+@media (max-width: 767px) {
+  .airiq-map .leaflet-bottom {
+    bottom: 58px;
+  }
+}

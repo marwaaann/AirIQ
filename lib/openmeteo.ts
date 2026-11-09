@@ -267,53 +267,78 @@ export async function getAirSeries(lat: number, lon: number, pastDays: number, f
   return toSeries(r);
 }
 
+/** Most points accepted in one batched grid request. */
+export const MAX_GRID_BATCH = 64;
+
+/** Sub-index variables needed to color the map layers on both scales. */
+const GRID_SUB_INDEX_VARIABLES = [
+  "us_aqi_pm2_5",
+  "us_aqi_pm10",
+  "us_aqi_nitrogen_dioxide",
+  "us_aqi_ozone",
+  "us_aqi_sulphur_dioxide",
+  "us_aqi_carbon_monoxide",
+  "european_aqi_pm2_5",
+  "european_aqi_pm10",
+  "european_aqi_nitrogen_dioxide",
+  "european_aqi_ozone",
+  "european_aqi_sulphur_dioxide",
+] as const;
+
 /**
- * Current readings for many points in batched multi-location requests.
- * Open-Meteo accepts comma-separated coordinate lists and returns an array.
+ * Current readings for up to 64 points in ONE multi-location request
+ * (comma-separated latitude/longitude lists; Open-Meteo returns an array in
+ * the same order). Any upstream failure is thrown, so callers never get a
+ * partially filled grid.
  */
 export async function getAirGrid(points: readonly { lat: number; lon: number }[]): Promise<GridCell[]> {
-  const CHUNK = 100;
-  const chunks: { lat: number; lon: number }[][] = [];
-  for (let i = 0; i < points.length; i += CHUNK) chunks.push(points.slice(i, i + CHUNK));
-
-  const results = await Promise.all(
-    chunks.map(async (chunk) => {
-      const params = new URLSearchParams({
-        latitude: chunk.map((p) => coord(p.lat).toFixed(2)).join(","),
-        longitude: chunk.map((p) => coord(p.lon).toFixed(2)).join(","),
-        current: AQ_VARIABLES.join(","),
-        timezone: "GMT",
-      });
-      const data = await fetchJson(`${AQ_BASE}?${params}`, {
-        upstream: "Open-Meteo Air Quality",
-        schema: AqMultiResponseSchema,
-      });
-      const arr = Array.isArray(data) ? data : [data];
-      return arr.map((r, i): GridCell | null => {
-        const c = r.current;
-        const req = chunk[i];
-        if (!c || !req) return null;
-        return {
-          // Report the requested grid position so the heatmap stays regular;
-          // Open-Meteo snaps to its own ~11 km model grid internally.
-          latitude: req.lat,
-          longitude: req.lon,
-          time: localToUtcIso(c.time, 0),
-          usAqi: c.us_aqi ?? null,
-          euAqi: c.european_aqi ?? null,
-          pollutants: {
-            pm2_5: c.pm2_5 ?? null,
-            pm10: c.pm10 ?? null,
-            nitrogen_dioxide: c.nitrogen_dioxide ?? null,
-            sulphur_dioxide: c.sulphur_dioxide ?? null,
-            ozone: c.ozone ?? null,
-            carbon_monoxide: c.carbon_monoxide ?? null,
-          },
-        };
-      });
-    }),
-  );
-  return results.flat().filter((c): c is GridCell => c !== null);
+  if (points.length === 0) return [];
+  if (points.length > MAX_GRID_BATCH) {
+    throw new UpstreamError("Open-Meteo Air Quality", `grid too large (${points.length} > ${MAX_GRID_BATCH} points)`, 400);
+  }
+  const params = new URLSearchParams({
+    latitude: points.map((p) => String(p.lat)).join(","),
+    longitude: points.map((p) => String(p.lon)).join(","),
+    current: [...AQ_VARIABLES, ...GRID_SUB_INDEX_VARIABLES].join(","),
+    timezone: "GMT",
+  });
+  const data = await fetchJson(`${AQ_BASE}?${params}`, {
+    upstream: "Open-Meteo Air Quality",
+    schema: AqMultiResponseSchema,
+  });
+  const arr = Array.isArray(data) ? data : [data];
+  if (arr.length !== points.length) {
+    throw new UpstreamError(
+      "Open-Meteo Air Quality",
+      `Open-Meteo Air Quality: expected ${points.length} locations, got ${arr.length}`,
+    );
+  }
+  const cells: GridCell[] = [];
+  arr.forEach((r, i) => {
+    const c = r.current;
+    const req = points[i];
+    if (!c) return; // No reading for this point: leave a gap rather than invent one.
+    cells.push({
+      // Report the requested (snapped) position so the grid stays regular;
+      // Open-Meteo picks its nearest model cell internally.
+      latitude: req.lat,
+      longitude: req.lon,
+      time: localToUtcIso(c.time, 0),
+      usAqi: c.us_aqi ?? null,
+      euAqi: c.european_aqi ?? null,
+      pollutants: {
+        pm2_5: c.pm2_5 ?? null,
+        pm10: c.pm10 ?? null,
+        nitrogen_dioxide: c.nitrogen_dioxide ?? null,
+        sulphur_dioxide: c.sulphur_dioxide ?? null,
+        ozone: c.ozone ?? null,
+        carbon_monoxide: c.carbon_monoxide ?? null,
+      },
+      usSubIndices: subIndices(c, "us"),
+      euSubIndices: subIndices(c, "eu"),
+    });
+  });
+  return cells;
 }
 
 /* ------------------------------------------------------------------------- */

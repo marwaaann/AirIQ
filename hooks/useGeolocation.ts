@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-import { formatCoords } from "@/lib/slug";
+import { fallbackPlaceName } from "@/lib/place";
+import type { LabelKind } from "@/lib/slug";
 
 export type GeoStatus = "idle" | "locating" | "success" | "denied" | "unavailable" | "timeout" | "unsupported";
 
@@ -67,8 +68,8 @@ export interface PlaceLabel {
   subtitle?: string;
 }
 
-export function fallbackLocationLabel(latitude: number, longitude: number): PlaceLabel {
-  return { name: `Your location (${formatCoords(latitude, longitude)})` };
+export function fallbackLocationLabel(latitude: number, longitude: number, kind: LabelKind = "my-location"): PlaceLabel {
+  return { name: fallbackPlaceName(kind, latitude, longitude) };
 }
 
 /** Reverse-geocode coordinates to a place name. Returns null on any failure. */
@@ -97,8 +98,9 @@ export async function reverseLabel(latitude: number, longitude: number, signal?:
  * Resolve a label for coordinates in the background. Starts with the
  * coordinate fallback so the UI never waits on the network.
  */
-export function useReverseLabel(latitude: number, longitude: number, enabled: boolean) {
-  const [label, setLabel] = useState<PlaceLabel>(() => fallbackLocationLabel(latitude, longitude));
+export function useReverseLabel(latitude: number, longitude: number, kind: LabelKind | null) {
+  const enabled = kind !== null;
+  const [label, setLabel] = useState<PlaceLabel>(() => fallbackLocationLabel(latitude, longitude, kind ?? "my-location"));
   const [resolved, setResolved] = useState(false);
   const done = useRef(false);
 

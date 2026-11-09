@@ -85,18 +85,33 @@ export interface GridCell {
   usAqi: number | null;
   euAqi: number | null;
   pollutants: PollutantValues;
+  /** Source sub-indices per pollutant (EU has no CO). */
+  usSubIndices: SubIndexValues;
+  euSubIndices: SubIndexValues;
 }
+
+export type StationSource = "waqi" | "openaq";
 
 export interface Station {
   id: string;
-  source: "waqi" | "openaq";
+  source: StationSource;
   name: string;
   latitude: number;
   longitude: number;
-  /** AQI as reported by the network (WAQI) or computed from PM2.5 (OpenAQ). */
-  aqi: number | null;
-  pollutants: Partial<PollutantValues>;
-  time: string | null;
+  /** US AQI. */
+  aqi: number;
+  /**
+   * "reported": the network's own AQI (WAQI, US EPA scale).
+   * "pm25-latest": computed in-app from the station's latest hourly PM2.5
+   * reading (OpenAQ), an instantaneous indicator rather than a 24-h AQI.
+   */
+  aqiBasis: "reported" | "pm25-latest";
+  /** Only set when the source states it; never inferred. */
+  dominant: Pollutant | null;
+  /** Latest PM2.5 in µg/m³ when the source provides it. */
+  pm25: number | null;
+  /** ISO time of the reading, if provided. */
+  updatedAt: string | null;
   url?: string;
 }
 

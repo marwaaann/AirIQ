@@ -15,11 +15,17 @@ function isErrorBody(v: unknown): v is { error: string; detail?: string } {
   return typeof v === "object" && v !== null && "error" in v && typeof (v as { error: unknown }).error === "string";
 }
 
-export async function apiFetch<T>(url: string): Promise<T> {
+/** Status used for requests cancelled by an AbortSignal (not a real failure). */
+export const ABORTED_STATUS = -1;
+
+export async function apiFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(url, { headers: { Accept: "application/json" } });
-  } catch {
+    res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+  } catch (err) {
+    if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      throw new ApiClientError("Request cancelled", ABORTED_STATUS);
+    }
     throw new ApiClientError("Network error. Check your connection.", 0);
   }
   let body: unknown;

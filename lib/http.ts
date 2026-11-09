@@ -65,7 +65,8 @@ export async function fetchJson<S extends z.ZodType>(url: string, opts: FetchJso
 
     const omError = OpenMeteoErrorSchema.safeParse(body);
     if (omError.success) {
-      throw new UpstreamError(opts.upstream, `${opts.upstream}: ${omError.data.reason}`, res.status === 400 ? 400 : 502);
+      const status = res.status === 429 ? 429 : res.status === 400 ? 400 : 502;
+      throw new UpstreamError(opts.upstream, `${opts.upstream}: ${omError.data.reason}`, status);
     }
     if (!res.ok) {
       throw new UpstreamError(opts.upstream, `${opts.upstream}: HTTP ${res.status}`, res.status === 429 ? 429 : 502);

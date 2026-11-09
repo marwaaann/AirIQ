@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
-import { ComingSoon } from "@/components/ComingSoon";
+import { MapScreen } from "@/components/map/MapScreen";
 
-export const metadata: Metadata = { title: "Pollution map" };
+export const metadata: Metadata = {
+  title: "Pollution map",
+  description: "Live air-quality map with AQI and pollutant layers, an interpolated heatmap, and optional ground stations.",
+};
 
-export default function Page() {
-  return <ComingSoon title="Pollution map" phase={3} description="An interactive map with AQI-colored markers, a pollutant layer switcher, and a heatmap built from a live grid of Open-Meteo points." />;
+export default function MapPage() {
+  return <MapScreen />;
 }

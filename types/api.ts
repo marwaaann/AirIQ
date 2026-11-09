@@ -1,4 +1,4 @@
-import type { AirQuality, AirSeries, GeoLocation, GridCell, Station, WeatherSeries } from "@/types/air";
+import type { AirQuality, AirSeries, GeoLocation, GridCell, Station, StationSource, WeatherSeries } from "@/types/air";
 import type { PollutantKey } from "@/lib/aqi-categories";
 
 /** Response bodies of the app's own route handlers (app/api/*). */
@@ -33,12 +33,16 @@ export interface GeocodeResponse {
 
 export interface GridResponse {
   cells: GridCell[];
+  /** Grid spacing in degrees (points sit on multiples of it). */
+  step: number;
   fetchedAt: string;
 }
 
 export interface StationsResponse {
+  source: StationSource | "none";
   stations: Station[];
-  sources: { waqi: "ok" | "missing-key" | "error"; openaq: "ok" | "missing-key" | "error" };
+  /** Human-readable note, e.g. a fallback or "not configured". */
+  note?: string;
   fetchedAt: string;
 }
 

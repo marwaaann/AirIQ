@@ -163,3 +163,74 @@ export const GeocodeQuerySchema = z.object({
     .regex(/^[a-z]{2}$/)
     .default("en"),
 });
+
+const boundsShape = {
+  south: z.coerce.number().min(-90).max(90),
+  west: z.coerce.number().min(-180).max(180),
+  north: z.coerce.number().min(-90).max(90),
+  east: z.coerce.number().min(-180).max(180),
+  zoom: z.coerce.number().int().min(0).max(20),
+};
+
+/** Map viewport query (grid + stations). Span limits are checked in the route. */
+export const BoundsQuerySchema = z
+  .object(boundsShape)
+  .refine((b) => b.south < b.north, { message: "south must be less than north", path: ["south"] })
+  .refine((b) => b.west < b.east, { message: "west must be less than east", path: ["west"] });
+
+/* ------------------------------------------------------------------------- */
+/* WAQI (aqicn.org)                                                           */
+/* ------------------------------------------------------------------------- */
+
+export const WaqiBoundsItemSchema = z.object({
+  lat: z.number(),
+  lon: z.number(),
+  uid: z.number(),
+  /** Numeric string, or "-" when the station has no current value. */
+  aqi: z.union([z.string(), z.number()]),
+  station: z.object({
+    name: z.string(),
+    time: z.string().optional(),
+  }),
+});
+
+export const WaqiBoundsResponseSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("ok"), data: z.array(z.unknown()) }),
+  z.object({ status: z.literal("error"), data: z.unknown() }),
+]);
+
+/* ------------------------------------------------------------------------- */
+/* OpenAQ v3                                                                  */
+/* ------------------------------------------------------------------------- */
+
+const OaqDatetime = z.object({ utc: z.string(), local: z.string().optional() }).nullable().optional();
+const OaqCoordinates = z.object({ latitude: z.number().nullable(), longitude: z.number().nullable() });
+
+export const OpenAqLocationSchema = z.object({
+  id: z.number(),
+  name: z.string().nullable(),
+  locality: z.string().nullable().optional(),
+  coordinates: OaqCoordinates,
+  sensors: z.array(
+    z.object({
+      id: z.number(),
+      parameter: z.object({ id: z.number(), name: z.string(), units: z.string() }),
+    }),
+  ),
+  datetimeLast: OaqDatetime,
+});
+
+export const OpenAqLocationsResponseSchema = z.object({
+  results: z.array(z.unknown()),
+});
+
+export const OpenAqLatestItemSchema = z.object({
+  datetime: z.object({ utc: z.string() }),
+  value: z.number(),
+  sensorsId: z.number(),
+  locationsId: z.number(),
+});
+
+export const OpenAqLatestResponseSchema = z.object({
+  results: z.array(z.unknown()),
+});
