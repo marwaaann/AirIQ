@@ -2,7 +2,17 @@
 
 Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps, history, forecasts, alerts and an AI assistant, using only authentic public air-quality data.
 
-> 🚧 Work in progress. Phase 1 (scaffold, AQI engine, Open-Meteo client, geocode/air routes) is complete.
+> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer) and Phase 2 (dashboard).
+
+## Features so far
+
+- **Live dashboard** (`/`): search hero, "Use my location", favorites row and six popular cities, each with live AQI.
+- **City page** (`/city/[slug]`): semicircular AQI gauge with category color, pattern and label; plain-English verdict; "Updated X min ago" with 10-minute auto-refresh and a manual Refresh button; six pollutant cards with sub-index color, WHO guideline ratio, dominant-pollutant badge and a 24-hour sparkline; in-app EPA cross-check.
+- **US / European AQI toggle**, persisted and applied app-wide.
+- **Favorites** in localStorage (star on the city header).
+- **City search**: debounced WAI-ARIA combobox (arrow keys, Enter, Escape).
+- **Dark/light theme**, persisted and applied before first paint (no flash). Mobile-first layout, visible focus rings, skip link.
+- Every data view has a skeleton, an error state with Retry, and an empty state.
 
 ## Quick start
 
@@ -30,8 +40,19 @@ Requires Node.js ≥ 22.18 (native TypeScript type-stripping is used for tests).
 | --- | --- | --- |
 | `GET /api/geocode?q=&count=&lang=` | Open-Meteo Geocoding | City search, cached 24 h |
 | `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, source sub-indices, in-app EPA cross-check, cached 10 min |
+| (client) BigDataCloud reverse geocode | api.bigdatacloud.net | Labels "Use my location". No key, called from the browser |
 
 All upstream calls are validated with Zod and normalized to the types in `types/air.ts`. Failures return `{ error, detail }` with a 4xx/5xx status. The app never substitutes made-up values.
+
+## Project layout
+
+```
+app/            pages + route handlers (api/*)
+components/     UI (AqiGauge, PollutantCard, CitySearch, CityDashboard, …)
+hooks/          useCity (active city + useAir), useFavorites, useAqiScale, useGeolocation, …
+lib/            aqi.ts, aqi-categories.ts, openmeteo.ts, schemas.ts, cache.ts, http.ts, slug.ts, storage.ts, …
+types/          internal data model + API response types
+```
 
 ## Decisions
 
@@ -44,3 +65,12 @@ All upstream calls are validated with Zod and normalized to the types in `types/
 - **WHO guideline comparison** uses WHO 2021 AQG values. For hourly readings: 24-hour guidelines for PM/NO₂/SO₂/CO and the 8-hour guideline for O₃.
 - **Times** are normalized to UTC ISO strings. Each series keeps its `utcOffsetSeconds` so local hour-of-day patterns can still be computed.
 - **Caching:** Next.js data cache (`revalidate: 600`) plus an in-process TTL cache with in-flight de-duplication.
+- **Shareable city URLs** are `/city/<name>-<lat>-<lon>` with 3-decimal coordinates (~100 m), e.g. `/city/new-york-40.714--74.006`. The coordinates in the slug are authoritative. The server looks the name up in the geocoder only to recover "Region, Country" (same name within 50 km), and falls back to the slug name if the geocoder fails.
+- **"Use my location"** navigates as soon as coordinates are known, to `/city/your-location-<lat>-<lon>`. The page loads air data right away and resolves a place name from BigDataCloud's free client endpoint in the background. When the name arrives, the URL is swapped (no reload) for a shareable named slug. If the lookup fails, the label stays "Your location (lat, lon)".
+- **Gauge bands have equal width** (six per scale) so the low end stays readable on a 0–500 scale. The marker interpolates inside its band.
+- **Pollutant card colors** come from Open-Meteo's per-pollutant sub-index on the active scale. The European index has no CO component, so the CO card says so instead of showing a color.
+- **WHO comparison** compares the current hourly concentration with the WHO 2021 24-hour guideline (8-hour for O₃). This is an indicator, not a formal exceedance.
+- **Errors show immediately.** SWR keeps retrying in the background, but the user sees the error and a Retry button (which shows "Retrying…") rather than a long skeleton. On a failed refresh, the last successful reading stays visible with a "Refresh failed" notice.
+- **Theme** defaults to the OS preference until the user picks one.
+- **Popular cities** are a fixed list of coordinates. Their readings are always fetched live.
+- **Pages from later phases** (`/map`, `/compare`, `/alerts`, `/assistant`) show a "Coming in a later phase" page instead of a 404.

@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
+/* Dark mode is driven by data-theme on <html> (set before paint by the inline script in layout.tsx). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --border: #dde2e9;
+  --text: #0e1726;
+  --muted: #586374;
+  --brand: #0f766e;
+  --brand-contrast: #ffffff;
+  --focus: #2563eb;
+  --danger: #b42318;
+  /* Per-view accent, overridden inline by the AQI category of the current city. */
+  --accent: var(--brand);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0e14;
+  --surface: #111821;
+  --surface-2: #18212d;
+  --border: #263243;
+  --text: #e6ebf2;
+  --muted: #98a4b5;
+  --brand: #2dd4bf;
+  --brand-contrast: #04201d;
+  --focus: #60a5fa;
+  --danger: #f97066;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--bg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible, consistent focus ring for keyboard users. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Skeleton shimmer */
+@keyframes airiq-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: airiq-shimmer 1.4s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* Category patterns: a second visual cue beyond color (color-blind safety). */
+.aqi-pattern-none {
+  background-image: none;
+}
+.aqi-pattern-dots {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.38) 1.2px, transparent 1.6px);
+  background-size: 6px 6px;
+}
+.aqi-pattern-lines {
+  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.32) 0 1.5px, transparent 1.5px 6px);
+}
+.aqi-pattern-cross {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 1.5px 7px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 1.5px 7px);
+}
+.aqi-pattern-grid {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.45) 0 1.5px, transparent 1.5px 6px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0 1.5px, transparent 1.5px 6px);
+}
+.aqi-pattern-solid-stripes {
+  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.35) 0 4px, transparent 4px 8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
