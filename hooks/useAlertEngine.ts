@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { CHECK_ALERTS_EVENT, eventsStore, ruleStatesStore, rulesStore } from "@/lib/alert-store";
-import { appendEvents, evaluateRule, INITIAL_STATE, type AlertEvent, type AlertRule, type ReadingSource } from "@/lib/alerts";
+import { appendEvents, evaluateCityRules, type AlertEvent, type AlertRule, type ReadingSource } from "@/lib/alerts";
+import { staleMetaOf } from "@/lib/stale";
 import { useStoredValue } from "@/lib/storage";
 import { airUrl, forecastUrl } from "@/hooks/useCity";
 import type { AirResponse, ForecastResponse } from "@/types/api";
@@ -71,8 +72,13 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
  * Evaluate a city's rules against its latest data. State is read and written
  * through the store's functional update, so repeated or concurrent runs never
  * fire the same episode twice. Returns the NEW events only.
+ *
+ * Data served from the service worker's offline cache is never evaluated:
+ * nothing fires and nothing is recorded until fresh data arrives.
  */
 export function evaluateCity(rules: readonly AlertRule[], air: AirResponse | undefined, forecast: ForecastResponse | undefined, now: number): AlertEvent[] {
+  const stale = staleMetaOf(air).isStale || staleMetaOf(forecast).isStale;
+  if (stale) return [];
   const current: ReadingSource | null = air
     ? {
         time: air.current.time,
@@ -83,15 +89,11 @@ export function evaluateCity(rules: readonly AlertRule[], air: AirResponse | und
       }
     : null;
   const points = forecast?.official.points ?? null;
-  const fresh: AlertEvent[] = [];
+  let fresh: AlertEvent[] = [];
   ruleStatesStore.set((prev) => {
-    const next = { ...prev };
-    for (const rule of rules) {
-      const res = evaluateRule(rule, current, points, now, prev[rule.id] ?? INITIAL_STATE);
-      next[rule.id] = res.state;
-      fresh.push(...res.events);
-    }
-    return next;
+    const res = evaluateCityRules(rules, current, points, now, prev, stale);
+    fresh = res.events;
+    return res.states ?? prev;
   });
   if (fresh.length) eventsStore.set((prev) => appendEvents(prev, fresh));
   return fresh;

@@ -6,6 +6,8 @@ import useSWR from "swr";
 import { CategoryBadge, CategorySwatch } from "@/components/CategoryBadge";
 import { ForecastChart, type ForecastRow } from "@/components/forecast/ForecastChart";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
+import { staleMetaOf } from "@/lib/stale";
 import { FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { getCategory } from "@/lib/aqi-categories";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
@@ -119,6 +121,7 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
         <EmptyState title="No forecast for this location">Open-Meteo returned no forecast values.</EmptyState>
       ) : (
         <div className="flex flex-col gap-5">
+          <StaleNotice meta={staleMetaOf(data)} timeZone={view.tz} onRetry={() => void mutate()} retrying={isValidating} />
           {error ? (
             <ErrorState compact title="Refresh failed, showing the last loaded forecast" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />
           ) : null}

@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { WeatherScatter } from "@/components/weather/WeatherScatter";
 import { WindRose } from "@/components/weather/WindRose";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
+import { combineStale, staleMetaOf } from "@/lib/stale";
 import { datesEnding, localParts } from "@/lib/time";
 import {
   MIN_HOURS_PER_DAY,
@@ -120,6 +122,12 @@ export default function WeatherPanel({ lat, lon }: { lat: number; lon: number })
         <EmptyState title="No overlapping data">Open-Meteo returned no hours with both PM2.5 and weather for this period.</EmptyState>
       ) : (
         <div className={`flex flex-col gap-5 ${air.isValidating || wx.isValidating ? "opacity-80" : ""}`} data-testid="weather-analysis">
+          <StaleNotice
+            meta={combineStale(staleMetaOf(air.data), staleMetaOf(wx.data))}
+            timeZone={computed.tz}
+            onRetry={retry}
+            retrying={air.isValidating || wx.isValidating}
+          />
           {error ? <ErrorState compact title="Refresh failed, showing the last loaded data" message={errorMessage(error)} onRetry={retry} /> : null}
 
           <p className="text-sm text-muted" data-testid="weather-n">

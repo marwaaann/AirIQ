@@ -3,10 +3,11 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
+import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
 import { Skeleton } from "@/components/states";
 
 /** Everything Leaflet-related is client-only. */
-const MapClient = dynamic(() => import("@/components/map/MapClient"), {
+const MapClient = dynamic(() => import("@/components/map/MapClient").catch(offlineFallback("The map")), {
   ssr: false,
   loading: () => <Skeleton className="h-full w-full rounded-none" label="Loading map" />,
 });

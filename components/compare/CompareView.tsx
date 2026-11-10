@@ -10,6 +10,7 @@ import { CitySearch } from "@/components/CitySearch";
 import { CompareCard } from "@/components/compare/CompareCard";
 import { CompareLineChart, dateLabel, type ChartRow, type ChartSeries } from "@/components/compare/CompareCharts";
 import { EmptyState, ErrorState } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { compareCityFromSlug, useCompareCity, type CompareCityData, type CompareCityRef } from "@/hooks/useCompareCity";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -18,6 +19,7 @@ import { getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, type PollutantKey } from 
 import { headline } from "@/lib/aqi-display";
 import { MAX_COMPARE, MIN_COMPARE, compareSummary, parseCitiesParam, rankCleanest, serializeCities } from "@/lib/compare";
 import { errorMessage } from "@/lib/fetcher";
+import { combineStale, staleMetaOf } from "@/lib/stale";
 import { dailyStats, toLocalHours } from "@/lib/history-stats";
 import { RANGES, type RangeParam } from "@/lib/share";
 import { makeCitySlug, parseCitySlug } from "@/lib/slug";
@@ -239,6 +241,16 @@ export function CompareView() {
                 </ul>
               ) : null}
 
+              <StaleNotice
+                meta={combineStale(...slots.flatMap((s) => [staleMetaOf(s.history.data), staleMetaOf(s.forecast.data)]))}
+                timeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                onRetry={() =>
+                  slots.forEach((s) => {
+                    void s.history.mutate();
+                    void s.forecast.mutate();
+                  })
+                }
+              />
               {pieceErrors.map((e) => (
                 <ErrorState key={e.key} compact title={`Couldn't load ${e.what} for ${e.name}`} message={errorMessage(e.err)} onRetry={e.retry} />
               ))}

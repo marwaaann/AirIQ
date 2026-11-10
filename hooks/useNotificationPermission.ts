@@ -2,6 +2,8 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+import { chooseNotifyPath, fallbackAfter, type NotifyPath } from "@/lib/notify-path";
+
 export type NotificationStatus = "unsupported" | "default" | "granted" | "denied";
 
 const CHANGED = "airiq:notification-permission";
@@ -40,19 +42,47 @@ export function useNotificationPermission(): { status: NotificationStatus; reque
   return { status, request };
 }
 
-/** Show a browser notification if allowed. Returns whether one was shown. */
-export function showBrowserNotification(title: string, body: string, tag: string, onClick: () => void): boolean {
-  if (read() !== "granted") return false;
+async function activeRegistration(): Promise<ServiceWorkerRegistration | null> {
   try {
-    const n = new Notification(title, { body, tag });
-    n.onclick = () => {
-      window.focus();
-      onClick();
-      n.close();
-    };
-    return true;
+    if (!("serviceWorker" in navigator)) return null;
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg?.active ? reg : null;
   } catch {
-    // Some browsers only allow notifications from a service worker.
-    return false;
+    return null;
   }
+}
+
+/**
+ * Show an alert as a system notification if permission was granted.
+ * Prefers ServiceWorkerRegistration.showNotification (the worker's
+ * notificationclick opens `href`), then `new Notification()` from the page,
+ * then nothing (the caller always shows the in-app toast anyway).
+ * Returns the path that was used.
+ */
+export async function showBrowserNotification(title: string, body: string, tag: string, href: string, onClick: () => void): Promise<NotifyPath> {
+  const hasConstructor = typeof window !== "undefined" && "Notification" in window;
+  const reg = await activeRegistration();
+  let path = chooseNotifyPath({ permission: read(), hasActiveWorker: reg !== null, hasConstructor });
+  if (path === "service-worker" && reg) {
+    try {
+      await reg.showNotification(title, { body, tag, data: { url: href }, icon: "/pwa-icon/192", badge: "/pwa-icon/192" });
+      return path;
+    } catch {
+      path = fallbackAfter(path, hasConstructor);
+    }
+  }
+  if (path === "page") {
+    try {
+      const n = new Notification(title, { body, tag });
+      n.onclick = () => {
+        window.focus();
+        onClick();
+        n.close();
+      };
+      return path;
+    } catch {
+      // Browsers that only allow notifications from a service worker.
+    }
+  }
+  return "in-app";
 }

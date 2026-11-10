@@ -4,11 +4,13 @@ import Link from "next/link";
 
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import type { CompareCityData } from "@/hooks/useCompareCity";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
 import { formatConcentration, formatPlaceTime, formatRatio } from "@/lib/format";
+import { staleMetaOf } from "@/lib/stale";
 import type { AqiScale } from "@/types/air";
 
 /** Bars span 0–4× the WHO guideline; the 1× mark is drawn at 25%. */
@@ -71,6 +73,7 @@ export function CompareCard({
             Main pollutant: <strong>{h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</strong>
           </p>
           <p className="text-xs text-muted">{formatPlaceTime(data.current.time, data.current.timezone)}</p>
+          <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.current.timezone} onRetry={() => void mutate()} retrying={isValidating} />
           <ul className="flex flex-col gap-1.5" aria-label={`${city.name} pollutants relative to WHO guidelines`}>
             {POLLUTANT_ORDER.map((p) => {
               const info = POLLUTANT_INFO[p];

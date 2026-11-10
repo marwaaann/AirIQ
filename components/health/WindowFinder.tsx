@@ -5,11 +5,13 @@ import useSWR from "swr";
 
 import { CategorySwatch } from "@/components/CategoryBadge";
 import { ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { useProfile } from "@/hooks/useProfile";
 import { getCategory } from "@/lib/aqi-categories";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { findSafeWindows, type SafeWindow, type WindowActivity } from "@/lib/safe-windows";
+import { staleMetaOf } from "@/lib/stale";
 import type { AqiScale } from "@/types/air";
 import type { ForecastResponse } from "@/types/api";
 
@@ -131,6 +133,7 @@ export function WindowFinder({ lat, lon, scale }: { lat: number; lon: number; sc
         </label>
       </div>
 
+      {data ? <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.official.timezone} onRetry={() => void mutate()} retrying={isValidating} /> : null}
       {error && !data ? (
         <ErrorState compact title="Couldn't load the forecast" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />
       ) : isLoading && !data ? (

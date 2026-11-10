@@ -4,6 +4,7 @@ import { AlertBell } from "@/components/alerts/AlertBell";
 import { CitySearch } from "@/components/CitySearch";
 import { LogoMark } from "@/components/icons";
 import { NavLinks } from "@/components/NavLinks";
+import { InstallButton } from "@/components/pwa/InstallButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function SiteHeader() {
@@ -20,6 +21,7 @@ export function SiteHeader() {
           <CitySearch />
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <InstallButton />
           <AlertBell />
           <ThemeToggle />
         </div>

@@ -12,6 +12,8 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { AdviceCard } from "@/components/health/AdviceCard";
 import { HealthPanel } from "@/components/health/HealthPanel";
 import { PollutantCard } from "@/components/PollutantCard";
+import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
+import { StaleNotice } from "@/components/StaleNotice";
 import { ShareButton } from "@/components/ShareButton";
 import { SharedViewParams } from "@/components/SharedViewParams";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
@@ -23,6 +25,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
+import { staleMetaOf } from "@/lib/stale";
 import { CITY_TABS, RANGES, cityShareUrl, type CityTab, type RangeParam } from "@/lib/share";
 import { formatCoords, makeCitySlug, type LabelKind } from "@/lib/slug";
 import type { AirResponse } from "@/types/api";
@@ -30,15 +33,15 @@ import type { AqiScale } from "@/types/air";
 import type { SavedCity } from "@/types/city";
 
 /** Chart code is lazy-loaded so the Overview tab stays light. */
-const ForecastPanel = dynamic(() => import("@/components/forecast/ForecastPanel"), {
+const ForecastPanel = dynamic(() => import("@/components/forecast/ForecastPanel").catch(offlineFallback("The forecast")), {
   ssr: false,
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading forecast" />,
 });
-const WeatherPanel = dynamic(() => import("@/components/weather/WeatherPanel"), {
+const WeatherPanel = dynamic(() => import("@/components/weather/WeatherPanel").catch(offlineFallback("The weather analysis")), {
   ssr: false,
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading weather analysis" />,
 });
-const HistoryPanel = dynamic(() => import("@/components/history/HistoryPanel"), {
+const HistoryPanel = dynamic(() => import("@/components/history/HistoryPanel").catch(offlineFallback("The history view")), {
   ssr: false,
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading history" />,
 });
@@ -237,6 +240,9 @@ export function CityDashboard({ place }: { place: CityPlace }) {
 
       <SharedViewParams />
       <CityTabs tab={tab} onChange={setTab} />
+      {tab === "overview" && data ? (
+        <StaleNotice meta={staleMetaOf(data)} timeZone={data.current.timezone} onRetry={() => void mutate()} retrying={isValidating} />
+      ) : null}
 
       {tab === "overview" ? (
       <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">

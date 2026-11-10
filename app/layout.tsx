@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AlertRuntime } from "@/components/alerts/AlertRuntime";
+import { ConnectivityStatus } from "@/components/pwa/ConnectivityStatus";
+import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { SiteHeader } from "@/components/SiteHeader";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 import "./globals.css";
@@ -56,6 +58,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           medical advice.
         </footer>
         <AlertRuntime />
+        <ConnectivityStatus />
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

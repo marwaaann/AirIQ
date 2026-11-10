@@ -294,6 +294,37 @@ export function evaluateRule(
   return { events: [], state: next };
 }
 
+export interface CityEvaluation {
+  /** Next per-rule states, or null when nothing may be written (stale data). */
+  states: Record<string, RuleState> | null;
+  events: AlertEvent[];
+  skipped: "stale" | null;
+}
+
+/**
+ * Evaluate one city's rules. If either input came from the offline cache
+ * (`stale`), nothing is evaluated and nothing is recorded: no events, no
+ * state changes, so an episode is never opened or closed on old data.
+ */
+export function evaluateCityRules(
+  rules: readonly AlertRule[],
+  current: ReadingSource | null,
+  forecast: readonly ReadingSource[] | null,
+  now: number,
+  prev: Readonly<Record<string, RuleState>>,
+  stale: boolean,
+): CityEvaluation {
+  if (stale) return { states: null, events: [], skipped: "stale" };
+  const states: Record<string, RuleState> = { ...prev };
+  const events: AlertEvent[] = [];
+  for (const rule of rules) {
+    const res = evaluateRule(rule, current, forecast, now, prev[rule.id] ?? INITIAL_STATE);
+    states[rule.id] = res.state;
+    events.push(...res.events);
+  }
+  return { states, events, skipped: null };
+}
+
 /** Newest first, capped at MAX_EVENTS. */
 export function appendEvents(log: readonly AlertEvent[], events: readonly AlertEvent[]): AlertEvent[] {
   return [...events, ...log].slice(0, MAX_EVENTS);

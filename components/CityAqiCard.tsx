@@ -4,10 +4,12 @@ import Link from "next/link";
 
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { useAir } from "@/hooks/useCity";
 import { headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
+import { staleMetaOf } from "@/lib/stale";
 import type { SavedCity } from "@/types/city";
 
 /** Compact live-AQI card for favorites and popular cities. */
@@ -55,6 +57,7 @@ export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: ()
         </div>
         <p className="font-mono text-4xl font-bold tabular-nums">{h.value !== null ? Math.round(h.value) : "n/a"}</p>
         {h.category ? <CategoryBadge category={h.category} size="sm" /> : <span className="text-xs text-muted">No index</span>}
+        <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.current.timezone} />
       </Link>
       {onRemove ? (
         <button

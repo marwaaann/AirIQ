@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 
 import { ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import {
   CIGARETTE_DISCLAIMER,
   CIGARETTE_SOURCE,
@@ -17,6 +18,7 @@ import {
 import { historyUrl } from "@/hooks/useCity";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { formatInZone } from "@/lib/format";
+import { staleMetaOf } from "@/lib/stale";
 import type { HistoryResponse } from "@/types/api";
 
 /**
@@ -50,6 +52,7 @@ export function CigaretteEquivalent({ lat, lon, variant = "card" }: { lat: numbe
       <h3 id="cig-title" className="font-semibold">
         Cigarette equivalent
       </h3>
+      <StaleNotice compact meta={staleMetaOf(data)} timeZone={tz} onRetry={() => void mutate()} retrying={isValidating} />
       {day.ok ? (
         <p>
           <span className="text-2xl font-bold" data-testid="cig-day">

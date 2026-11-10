@@ -7,6 +7,8 @@ import { Disclaimer, useAdvice } from "@/components/health/advice-common";
 import { WindowFinder } from "@/components/health/WindowFinder";
 import { ProfileSelector } from "@/components/ProfileSelector";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
+import { staleMetaOf } from "@/lib/stale";
 import { useAir } from "@/hooks/useCity";
 import { useProfile } from "@/hooks/useProfile";
 import { errorMessage } from "@/lib/fetcher";
@@ -42,6 +44,7 @@ export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: 
         </div>
       </div>
       <Disclaimer />
+      {data ? <StaleNotice meta={staleMetaOf(data)} timeZone={data.current.timezone} onRetry={() => void mutate()} retrying={isValidating} /> : null}
 
       {error && !data ? (
         <ErrorState title="Couldn't load current air quality" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />

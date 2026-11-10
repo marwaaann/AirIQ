@@ -7,6 +7,7 @@ import { Markdown } from "@/components/assistant/Markdown";
 import { AlertIcon, RefreshIcon } from "@/components/icons";
 import { useAssistant, type ChatEntry } from "@/hooks/useAssistant";
 import { useNow } from "@/hooks/useNow";
+import { useOnline } from "@/hooks/useOnline";
 import { MAX_USER_CHARS, type ChatContext } from "@/lib/assistant/protocol";
 
 export const QUICK_PROMPTS = [
@@ -102,8 +103,9 @@ export const AssistantChat = forwardRef<AssistantChatHandle, { chatId: string; c
 
   const waitSec = a.rateLimitedUntil ? Math.max(0, Math.ceil((a.rateLimitedUntil - now) / 1000)) : 0;
   const rateLimited = waitSec > 0;
+  const online = useOnline();
   const notConfigured = a.config?.configured === false;
-  const canSend = !a.busy && !rateLimited && !notConfigured && text.trim().length > 0;
+  const canSend = online && !a.busy && !rateLimited && !notConfigured && text.trim().length > 0;
 
   useEffect(() => {
     const el = listRef.current;
@@ -111,7 +113,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, { chatId: string; c
   }, [a.entries]);
 
   function submit(value = text) {
-    if (!value.trim() || a.busy || rateLimited || notConfigured) return;
+    if (!value.trim() || !online || a.busy || rateLimited || notConfigured) return;
     void a.send(value);
     setText("");
   }
@@ -132,7 +134,13 @@ export const AssistantChat = forwardRef<AssistantChatHandle, { chatId: string; c
 
       <div ref={listRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" data-testid="chat-log">
         {notConfigured ? <NotConfigured model={a.config?.model} /> : null}
-        {a.configError ? <p className="text-sm text-danger">Could not reach the assistant service. Check your connection.</p> : null}
+        {!online ? (
+          <p role="status" className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm font-medium" data-testid="assistant-offline">
+            The assistant needs a connection.
+          </p>
+        ) : a.configError ? (
+          <p className="text-sm text-danger">Could not reach the assistant service. Check your connection.</p>
+        ) : null}
         {a.entries.length === 0 && !notConfigured ? (
           <div className="flex flex-col gap-3 py-4" data-testid="chat-empty">
             <p className="text-sm text-muted">
@@ -155,7 +163,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, { chatId: string; c
             <button
               key={q}
               type="button"
-              disabled={a.busy || rateLimited}
+              disabled={!online || a.busy || rateLimited}
               onClick={() => submit(q)}
               className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium hover:bg-surface-2 disabled:opacity-50"
             >
@@ -189,8 +197,8 @@ export const AssistantChat = forwardRef<AssistantChatHandle, { chatId: string; c
           onKeyDown={onKeyDown}
           rows={2}
           maxLength={MAX_USER_CHARS}
-          disabled={notConfigured}
-          placeholder={notConfigured ? "Assistant not configured" : "Ask about air quality… (Enter to send, Shift+Enter for a new line)"}
+          disabled={notConfigured || !online}
+          placeholder={!online ? "The assistant needs a connection" : notConfigured ? "Assistant not configured" : "Ask about air quality… (Enter to send, Shift+Enter for a new line)"}
           aria-describedby={`${id}-hint`}
           className="w-full resize-none rounded-xl border border-border bg-surface px-3 py-2 text-sm disabled:opacity-60"
         />

@@ -11,6 +11,7 @@ import { DISCLAIMER, useAdvice } from "@/components/health/advice-common";
 import { HistoryChart } from "@/components/history/HistoryChart";
 import { ShareButton } from "@/components/ShareButton";
 import { ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { forecastUrl, historyUrl, useAir } from "@/hooks/useCity";
 import { useProfile } from "@/hooks/useProfile";
@@ -23,6 +24,7 @@ import { dailyStats, toLocalHours } from "@/lib/history-stats";
 import { PROFILES } from "@/lib/profiles";
 import { findSafeWindows } from "@/lib/safe-windows";
 import { cityShareUrl, parseRange, parseSharedPrefs } from "@/lib/share";
+import { combineStale, staleMetaOf } from "@/lib/stale";
 import { datesEnding, localParts } from "@/lib/time";
 import type { ForecastResponse, HistoryResponse } from "@/types/api";
 
@@ -161,6 +163,15 @@ export function CityReport({ place }: { place: ReportPlace }) {
             </p>
           ) : null}
         </header>
+        <StaleNotice
+          meta={combineStale(staleMetaOf(air.data), staleMetaOf(hist.data), staleMetaOf(fc.data))}
+          timeZone={air.data?.current.timezone ?? "UTC"}
+          onRetry={() => {
+            void air.mutate();
+            void hist.mutate();
+            void fc.mutate();
+          }}
+        />
 
         {air.error && !air.data ? (
           <ErrorState title="Couldn't load live air quality" message={errorMessage(air.error)} onRetry={() => void air.mutate()} retrying={air.isValidating} />

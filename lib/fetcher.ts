@@ -1,5 +1,7 @@
 /** Client-side fetcher for the app's own /api routes (used with SWR). */
 
+import { parseStaleHeaders, type WithMeta } from "./stale.ts";
+
 export class ApiClientError extends Error {
   readonly status: number;
   readonly detail?: string;
@@ -18,10 +20,19 @@ function isErrorBody(v: unknown): v is { error: string; detail?: string } {
 /** Status used for requests cancelled by an AbortSignal (not a real failure). */
 export const ABORTED_STATUS = -1;
 
-export async function apiFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
+/**
+ * GET one of AirIQ's API routes. Every object body gets `_meta` (see lib/stale.ts):
+ * whether the service worker served it from its offline cache, and from when.
+ * It is a regular (enumerable) field so SWR's deep compare notices a switch
+ * between a fresh and a stale copy of identical data.
+ */
+export async function apiFetch<T>(url: string, signal?: AbortSignal): Promise<T & WithMeta> {
   let res: Response;
   try {
-    res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+    // no-store: never let the browser HTTP cache answer (it could hand back old data that is
+    // not labelled stale). Freshness caching happens on the server; offline copies come only
+    // from the service worker, which marks them.
+    res = await fetch(url, { headers: { Accept: "application/json" }, signal, cache: "no-store" });
   } catch (err) {
     if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
       throw new ApiClientError("Request cancelled", ABORTED_STATUS);
@@ -38,7 +49,9 @@ export async function apiFetch<T>(url: string, signal?: AbortSignal): Promise<T>
     if (isErrorBody(body)) throw new ApiClientError(body.error, res.status, body.detail);
     throw new ApiClientError(`Request failed (HTTP ${res.status})`, res.status);
   }
-  return body as T;
+  const meta = parseStaleHeaders(res.headers);
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return body as T & WithMeta;
+  return { ...(body as T), _meta: meta };
 }
 
 /** Human-readable error message for UI error states. */

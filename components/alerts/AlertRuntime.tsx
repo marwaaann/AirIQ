@@ -41,7 +41,7 @@ function CityWatcher({ group, tick }: { group: CityGroup; tick: number }) {
         href,
         tone: "alert",
       });
-      if (!ev.suppressed) showBrowserNotification(ev.title, ev.message, ev.id, () => router.push(href));
+      if (!ev.suppressed) void showBrowserNotification(ev.title, ev.message, ev.id, href, () => router.push(href));
     }
   }, [air.data, forecast.data, tick, rulesSig, router]);
 

@@ -173,7 +173,7 @@ export function useAssistant(chatId: string, context?: ChatContext) {
         if (final?.status === "done") setAnnouncement(`AirIQ answered: ${final.content.replace(/[*_#`]/g, "").slice(0, 400)}`);
       } catch {
         if (ctrl.signal.aborted) update(aid, (e) => ({ ...e, status: "stopped" }));
-        else update(aid, (e) => ({ ...e, status: "error", error: "Network error. Check your connection and try again." }));
+        else update(aid, (e) => ({ ...e, status: "error", error: navigator.onLine ? "Network error. Check your connection and try again." : "The assistant needs a connection." }));
       } finally {
         abortRef.current = null;
         setBusy(false);

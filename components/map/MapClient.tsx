@@ -10,10 +10,13 @@ import { ControlsPanel, HeatControls, LayerSwitcher, LocateMapButton, MapLegend 
 import MapView, { type FlyTarget } from "@/components/map/MapView";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
 import { Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { useActiveCity } from "@/hooks/useCity";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useMapData, type Viewport } from "@/hooks/useMapData";
+import { REVALIDATE_EVENT } from "@/hooks/useOnline";
+import { combineStale, staleMetaOf } from "@/lib/stale";
 import { isMapLayer, type MapLayer } from "@/lib/map-layers";
 import { createStoredValue, useStoredValue } from "@/lib/storage";
 
@@ -100,6 +103,12 @@ export default function MapClient() {
   }, [initial]);
 
   const data = useMapData(viewport);
+  // Reload the visible map when the connection comes back.
+  const { retry: reloadMap } = data;
+  useEffect(() => {
+    window.addEventListener(REVALIDATE_EVENT, reloadMap);
+    return () => window.removeEventListener(REVALIDATE_EVENT, reloadMap);
+  }, [reloadMap]);
 
   // Only update state when the view really changed (moveend can fire without movement).
   const onViewport = useCallback((v: Viewport, c: L.LatLng) => {
@@ -180,6 +189,13 @@ export default function MapClient() {
             {showInitialSpinner ? "Loading air quality…" : "Updating…"}
           </p>
         ) : null}
+        <StaleNotice
+          className="pointer-events-auto max-w-lg shadow-lg"
+          meta={combineStale(staleMetaOf(data.grid), staleMetaOf(data.stations))}
+          timeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+          onRetry={data.retry}
+          retrying={data.gridLoading}
+        />
         {data.gridError ? (
           <div
             role="alert"

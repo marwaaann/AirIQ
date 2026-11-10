@@ -8,10 +8,12 @@ import { CalendarHeatmap } from "@/components/history/CalendarHeatmap";
 import { HistoryChart, type HistoryMetric } from "@/components/history/HistoryChart";
 import { HourOfDayHeatmap } from "@/components/history/HourOfDayHeatmap";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { StaleNotice } from "@/components/StaleNotice";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, type PollutantKey } from "@/lib/aqi-categories";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { formatLocalDate } from "@/lib/format";
+import { staleMetaOf } from "@/lib/stale";
 import {
   bestWorst,
   buildInsights,
@@ -145,6 +147,7 @@ export default function HistoryPanel({ lat, lon, scale }: { lat: number; lon: nu
         <EmptyState title="No history for this location">Open-Meteo returned no hourly values for this period.</EmptyState>
       ) : (
         <div className={`flex flex-col gap-5 ${isValidating ? "opacity-80" : ""}`}>
+          <StaleNotice meta={staleMetaOf(data)} timeZone={computed.tz} onRetry={() => void mutate()} retrying={isValidating} />
           {error ? (
             <ErrorState compact title="Refresh failed, showing the last loaded history" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />
           ) : null}

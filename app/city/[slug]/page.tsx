@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CityDashboard } from "@/components/CityDashboard";
+import { ViewOverrideProvider } from "@/hooks/useViewOverride";
 import { cityMetadata } from "@/lib/city-metadata";
 import { resolvePlace } from "@/lib/resolve-place";
 import { parseCitySlug } from "@/lib/slug";
@@ -23,5 +24,9 @@ export default async function CityPage({ params }: Props) {
   const parsed = parseCitySlug(slug);
   if (!parsed) notFound();
   const place = await resolvePlace(slug, parsed);
-  return <CityDashboard place={place} />;
+  return (
+    <ViewOverrideProvider>
+      <CityDashboard place={place} />
+    </ViewOverrideProvider>
+  );
 }

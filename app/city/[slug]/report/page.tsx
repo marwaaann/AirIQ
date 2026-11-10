@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { CityReport } from "@/components/report/CityReport";
 import { Skeleton } from "@/components/states";
+import { ViewOverrideProvider } from "@/hooks/useViewOverride";
 import { cityMetadata } from "@/lib/city-metadata";
 import { resolvePlace } from "@/lib/resolve-place";
 import { parseCitySlug } from "@/lib/slug";
@@ -27,7 +28,9 @@ export default async function ReportPage({ params }: Props) {
   const place = await resolvePlace(slug, parsed);
   return (
     <Suspense fallback={<Skeleton className="h-96 rounded-2xl" label="Loading report" />}>
-      <CityReport place={{ slug: place.slug, name: place.name, subtitle: place.subtitle, latitude: place.latitude, longitude: place.longitude }} />
+      <ViewOverrideProvider>
+        <CityReport place={{ slug: place.slug, name: place.name, subtitle: place.subtitle, latitude: place.latitude, longitude: place.longitude }} />
+      </ViewOverrideProvider>
     </Suspense>
   );
 }
