@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { ComingSoon } from "@/components/ComingSoon";
+import { CompareView } from "@/components/compare/CompareView";
+import { Skeleton } from "@/components/states";
 
-export const metadata: Metadata = { title: "Compare cities" };
+export const metadata: Metadata = {
+  title: "Compare cities",
+  description: "Compare live air quality, history and the official forecast for 2 to 4 cities side by side.",
+};
 
 export default function Page() {
-  return <ComingSoon title="Compare cities" phase={7} description="Compare 2 to 4 cities side by side, with an overlay chart of their AQI over time." />;
+  return (
+    <Suspense fallback={<Skeleton className="h-96 rounded-2xl" label="Loading comparison" />}>
+      <CompareView />
+    </Suspense>
+  );
 }

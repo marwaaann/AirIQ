@@ -11,6 +11,7 @@ import {
   AqMultiResponseSchema,
   AqResponseSchema,
   GeocodeResponseSchema,
+  WEATHER_HOURLY_EXTRA,
   WEATHER_VARIABLES,
   WeatherResponseSchema,
   SunResponseSchema,
@@ -393,12 +394,18 @@ export async function getAirGrid(points: readonly { lat: number; lon: number }[]
 /* Weather                                                                    */
 /* ------------------------------------------------------------------------- */
 
-export async function getWeather(lat: number, lon: number, pastDays: number, forecastDays: number): Promise<WeatherSeries> {
+export async function getWeather(
+  lat: number,
+  lon: number,
+  pastDays: number,
+  forecastDays: number,
+  revalidate: number = REVALIDATE_SECONDS,
+): Promise<WeatherSeries> {
   const params = new URLSearchParams({
     latitude: String(coord(lat)),
     longitude: String(coord(lon)),
     current: WEATHER_VARIABLES.join(","),
-    hourly: WEATHER_VARIABLES.join(","),
+    hourly: [...WEATHER_VARIABLES, ...WEATHER_HOURLY_EXTRA].join(","),
     past_days: String(Math.min(Math.max(0, Math.round(pastDays)), MAX_PAST_DAYS)),
     forecast_days: String(Math.min(Math.max(1, Math.round(forecastDays)), 16)),
     wind_speed_unit: "kmh",
@@ -407,7 +414,7 @@ export async function getWeather(lat: number, lon: number, pastDays: number, for
   const r = await fetchJson(`${WEATHER_BASE}?${params}`, {
     upstream: "Open-Meteo Weather",
     schema: WeatherResponseSchema,
-    revalidate: REVALIDATE_SECONDS,
+    revalidate,
   });
 
   const h = r.hourly;
@@ -419,6 +426,8 @@ export async function getWeather(lat: number, lon: number, pastDays: number, for
         windSpeed: at(h.wind_speed_10m, i),
         windDirection: at(h.wind_direction_10m, i),
         pressure: at(h.surface_pressure, i),
+        precipitation: at(h.precipitation, i),
+        boundaryLayerHeight: at(h.boundary_layer_height, i),
       }))
     : [];
   const c = r.current;
@@ -435,6 +444,8 @@ export async function getWeather(lat: number, lon: number, pastDays: number, for
           windSpeed: c.wind_speed_10m ?? null,
           windDirection: c.wind_direction_10m ?? null,
           pressure: c.surface_pressure ?? null,
+          precipitation: c.precipitation ?? null,
+          boundaryLayerHeight: null,
         }
       : null,
     points,

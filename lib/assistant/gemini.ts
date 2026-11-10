@@ -9,8 +9,9 @@ import type { ModelClient, Part } from "./loop.ts";
 import { UpstreamModelError } from "./loop.ts";
 import { FUNCTION_DECLARATIONS } from "./tools.ts";
 
-/** Default model: the current STABLE Flash model per Google's models page (checked 2026-11-10). Override with GEMINI_MODEL. */
-export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
+import { DEFAULT_GEMINI_MODEL } from "./fallback.ts";
+
+export { DEFAULT_GEMINI_MODEL };
 
 export interface GeminiOptions {
   apiKey: string;

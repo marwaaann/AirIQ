@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { liveDataLayer } from "@/lib/assistant/data-layer";
-import { createGeminiClient, DEFAULT_GEMINI_MODEL } from "@/lib/assistant/gemini";
+import { resolveModels, withQuotaFallback } from "@/lib/assistant/fallback";
+import { createGeminiClient } from "@/lib/assistant/gemini";
 import { runAssistant, UpstreamModelError } from "@/lib/assistant/loop";
 import { AssistantRequestSchema, encodeSse, type AssistantEvent } from "@/lib/assistant/protocol";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
@@ -19,8 +20,8 @@ function apiKey(): string | null {
   return k ? k : null;
 }
 
-function model(): string {
-  return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+function models() {
+  return resolveModels({ GEMINI_MODEL: process.env.GEMINI_MODEL, GEMINI_FALLBACK_MODEL: process.env.GEMINI_FALLBACK_MODEL });
 }
 
 function clientIp(req: NextRequest): string {
@@ -32,7 +33,8 @@ const noStore = { "Cache-Control": "no-store" };
 
 /** GET /api/assistant → whether the assistant is configured (never reveals the key). */
 export async function GET() {
-  return NextResponse.json({ configured: apiKey() !== null, model: model() }, { headers: noStore });
+  const m = models();
+  return NextResponse.json({ configured: apiKey() !== null, model: m.primary, fallbackModel: m.fallback }, { headers: noStore });
 }
 
 /** POST /api/assistant { messages, context? } → text/event-stream of AssistantEvent frames. */
@@ -65,7 +67,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad_request", message }, { status: 400, headers: noStore });
   }
 
-  const client = createGeminiClient({ apiKey: key, model: model(), baseUrl: process.env.GEMINI_BASE_URL?.trim() || undefined });
+  const m = models();
+  const baseUrl = process.env.GEMINI_BASE_URL?.trim() || undefined;
+  const primary = createGeminiClient({ apiKey: key, model: m.primary, baseUrl });
+  const fallback = m.fallback ? createGeminiClient({ apiKey: key, model: m.fallback, baseUrl }) : null;
   const upstream = new AbortController();
   // A client disconnect / Stop cancels the upstream model request and the loop.
   req.signal.addEventListener("abort", () => upstream.abort(), { once: true });
@@ -82,6 +87,8 @@ export async function POST(req: NextRequest) {
           closed = true;
         }
       };
+      // Quota 429 on the primary model → retry once on the backup model (and tell the UI).
+      const client = withQuotaFallback(primary, fallback, () => emit({ type: "model_fallback", model: m.fallback ?? "" }));
       try {
         await runAssistant({
           client,

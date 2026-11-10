@@ -68,6 +68,11 @@ function Message({ e, onRetry }: { e: ChatEntry; onRetry: () => void }) {
           {n}
         </p>
       ))}
+      {e.backupModel ? (
+        <p className="text-[11px] text-muted" data-testid="backup-model-note">
+          Answered by backup model ({e.backupModel}) because the main model&rsquo;s usage limit was reached.
+        </p>
+      ) : null}
       {e.status === "stopped" ? <p className="text-xs text-muted">Stopped.</p> : null}
       {e.status === "error" ? (
         <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-danger/50 bg-danger/5 px-3 py-2 text-sm">

@@ -48,6 +48,7 @@ export interface StationsResponse {
 
 export interface WeatherResponseBody {
   weather: WeatherSeries;
+  days: HistoryRange;
   fetchedAt: string;
 }
 

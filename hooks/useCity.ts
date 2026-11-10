@@ -26,6 +26,11 @@ export function forecastUrl(latitude: number, longitude: number): string {
   return `/api/forecast?lat=${latitude.toFixed(3)}&lon=${longitude.toFixed(3)}`;
 }
 
+/** Shared SWR key for /api/history (history tab, cigarette card, report, compare). */
+export function historyUrl(lat: number, lon: number, days: 7 | 30 | 90): string {
+  return `/api/history?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=${days}`;
+}
+
 export const FORECAST_REFRESH_MS = 15 * 60 * 1000;
 
 /** Live air quality for a coordinate via /api/air, auto-refreshing. */

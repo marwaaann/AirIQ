@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { useProfile } from "@/hooks/useProfile";
 import { healthAdvice, type AdviceResult } from "@/lib/health-advice";
+import type { ProfileId } from "@/lib/profiles";
 import { localParts } from "@/lib/time";
 import type { AqiScale } from "@/types/air";
 import type { AirResponse } from "@/types/api";
@@ -19,9 +20,10 @@ export function Disclaimer({ className = "" }: { className?: string }) {
   );
 }
 
-/** Advice for the current reading and the saved profile, or null if there is no index value. */
-export function useAdvice(air: AirResponse | undefined, scale: AqiScale): AdviceResult | null {
-  const [profile] = useProfile();
+/** Advice for the current reading and the saved profile (or `profileOverride`), or null if there is no index value. */
+export function useAdvice(air: AirResponse | undefined, scale: AqiScale, profileOverride?: ProfileId): AdviceResult | null {
+  const [saved] = useProfile();
+  const profileId = profileOverride ?? saved.id;
   return useMemo(() => {
     if (!air) return null;
     const c = air.current;
@@ -32,8 +34,8 @@ export function useAdvice(air: AirResponse | undefined, scale: AqiScale): Advice
       scale,
       dominant: scale === "us" ? c.dominantUs : c.dominantEu,
       pollutants: c.pollutants,
-      profile: profile.id,
+      profile: profileId,
       localHour: localParts(c.time, c.timezone).hour,
     });
-  }, [air, scale, profile.id]);
+  }, [air, scale, profileId]);
 }

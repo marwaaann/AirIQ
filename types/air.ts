@@ -70,6 +70,10 @@ export interface WeatherPoint {
   windSpeed: number | null;
   windDirection: number | null;
   pressure: number | null;
+  /** mm in the preceding hour (hourly) or current interval. */
+  precipitation: number | null;
+  /** Planetary boundary layer height, m (hourly only; null in `current`). */
+  boundaryLayerHeight: number | null;
 }
 
 export interface WeatherSeries {

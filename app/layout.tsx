@@ -10,6 +10,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  // Absolute base for Open Graph image URLs. Set SITE_URL in production (optional).
+  metadataBase: new URL(process.env.SITE_URL?.trim() || "http://localhost:3000"),
+  applicationName: "AirIQ",
   title: { default: "AirIQ: Real-Time Air Quality Intelligence", template: "%s · AirIQ" },
   description: "Live AQI, pollution maps, history, forecasts, alerts and an AI assistant, built on open air-quality data.",
 };
@@ -48,8 +51,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main id="main" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-4 sm:px-6">
           {children}
         </main>
-        <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs text-muted sm:px-6">
-          Data: Open-Meteo Air Quality (CAMS) and Open-Meteo Geocoding. AQI categories per US EPA and EEA. Model data, not
+        <footer className="site-footer mx-auto w-full max-w-6xl px-4 pb-10 text-xs text-muted sm:px-6">
+          Data: Open-Meteo Air Quality (CAMS), Open-Meteo Weather and Open-Meteo Geocoding. AQI categories per US EPA and EEA. Model data, not
           medical advice.
         </footer>
         <AlertRuntime />

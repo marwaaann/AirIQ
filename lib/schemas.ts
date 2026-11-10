@@ -107,7 +107,11 @@ export const WEATHER_VARIABLES = [
   "wind_speed_10m",
   "wind_direction_10m",
   "surface_pressure",
+  "precipitation",
 ] as const;
+
+/** Hourly-only extras (not available as `current`). */
+export const WEATHER_HOURLY_EXTRA = ["boundary_layer_height"] as const;
 
 export const WeatherCurrentSchema = z.object({
   time: z.string(),
@@ -116,6 +120,7 @@ export const WeatherCurrentSchema = z.object({
   wind_speed_10m: num,
   wind_direction_10m: num,
   surface_pressure: num,
+  precipitation: num,
 });
 
 export const WeatherHourlySchema = z.object({
@@ -125,6 +130,8 @@ export const WeatherHourlySchema = z.object({
   wind_speed_10m: numArray.optional(),
   wind_direction_10m: numArray.optional(),
   surface_pressure: numArray.optional(),
+  precipitation: numArray.optional(),
+  boundary_layer_height: numArray.optional(),
 });
 
 export const WeatherResponseSchema = z.object({

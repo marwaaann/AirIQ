@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-bg/85 backdrop-blur supports-[backdrop-filter]:bg-bg/70">
+    <header className="site-header sticky top-0 z-30 border-b border-border bg-bg/85 backdrop-blur supports-[backdrop-filter]:bg-bg/70">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pt-3 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-1.5 rounded-md font-bold tracking-tight text-brand" aria-label="AirIQ home">
           <LogoMark />

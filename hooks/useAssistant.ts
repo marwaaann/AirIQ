@@ -33,6 +33,8 @@ const ChatEntrySchema = z.object({
   status: z.enum(["streaming", "done", "stopped", "error"]),
   error: z.string().optional(),
   rechecked: z.boolean().optional(),
+  /** Set when the primary model hit its quota and the backup model answered. */
+  backupModel: z.string().max(80).optional(),
 });
 export type ChatEntry = z.infer<typeof ChatEntrySchema>;
 
@@ -52,7 +54,7 @@ const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(
 
 /* ------------------------------------------------------------------------- */
 
-export type AssistantConfig = { configured: boolean; model: string };
+export type AssistantConfig = { configured: boolean; model: string; fallbackModel: string | null };
 
 function applyEvent(e: ChatEntry, ev: AssistantEvent): ChatEntry {
   switch (ev.type) {
@@ -70,6 +72,8 @@ function applyEvent(e: ChatEntry, ev: AssistantEvent): ChatEntry {
     case "retry":
       // The answer is being regenerated after the numeric check: drop the first draft.
       return { ...e, content: "", rechecked: true };
+    case "model_fallback":
+      return { ...e, backupModel: ev.model };
     case "notice":
       return { ...e, notices: [...e.notices, ev.message].slice(-6) };
     case "done":

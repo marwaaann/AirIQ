@@ -7,10 +7,13 @@ import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 import { AqiGauge } from "@/components/AqiGauge";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
 import { AskAirIQ } from "@/components/assistant/AskAirIQ";
+import { CigaretteEquivalent } from "@/components/CigaretteEquivalent";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { AdviceCard } from "@/components/health/AdviceCard";
 import { HealthPanel } from "@/components/health/HealthPanel";
 import { PollutantCard } from "@/components/PollutantCard";
+import { ShareButton } from "@/components/ShareButton";
+import { SharedViewParams } from "@/components/SharedViewParams";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { useActiveCity, useAir } from "@/hooks/useCity";
@@ -20,6 +23,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
+import { CITY_TABS, RANGES, cityShareUrl, type CityTab, type RangeParam } from "@/lib/share";
 import { formatCoords, makeCitySlug, type LabelKind } from "@/lib/slug";
 import type { AirResponse } from "@/types/api";
 import type { AqiScale } from "@/types/air";
@@ -30,17 +34,21 @@ const ForecastPanel = dynamic(() => import("@/components/forecast/ForecastPanel"
   ssr: false,
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading forecast" />,
 });
+const WeatherPanel = dynamic(() => import("@/components/weather/WeatherPanel"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading weather analysis" />,
+});
 const HistoryPanel = dynamic(() => import("@/components/history/HistoryPanel"), {
   ssr: false,
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading history" />,
 });
 
-const TABS = ["overview", "forecast", "history", "health"] as const;
-type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { overview: "Overview", forecast: "Forecast", history: "History", health: "Health" };
+const TABS = CITY_TABS;
+type Tab = CityTab;
+const TAB_LABEL: Record<Tab, string> = { overview: "Overview", forecast: "Forecast", history: "History", health: "Health", weather: "Weather" };
 
 function CityTabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, forecast: null, history: null, health: null });
+  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, forecast: null, history: null, health: null, weather: null });
   function onKey(e: KeyboardEvent<HTMLButtonElement>, t: Tab) {
     const i = TABS.indexOf(t);
     let next: Tab | null = null;
@@ -137,6 +145,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
   const [tab, setTab] = useUrlParam<Tab>("tab", TABS, "overview");
   const [profile] = useProfile();
+  const [range] = useUrlParam<RangeParam>("range", RANGES, "7");
 
   const name = place.labelKind ? label.name : place.name;
   const subtitle = place.labelKind ? label.subtitle : place.subtitle;
@@ -203,6 +212,18 @@ export function CityDashboard({ place }: { place: CityPlace }) {
         <div className="flex flex-wrap items-center gap-2">
           <AqiScaleToggle />
           <FavoriteButton city={city} />
+          <ShareButton
+            title={`Air quality in ${name} · AirIQ`}
+            text={h?.value !== null && h?.value !== undefined && h.category ? `${name}: ${h.scaleLabel} ${h.value} (${h.category.label})` : `Air quality in ${name}`}
+            getUrl={() => cityShareUrl(window.location.origin, { slug, tab, range, scale, profile: profile.id })}
+          />
+          <Link
+            href={`/city/${slug}/report?${new URLSearchParams({ range, scale, profile: profile.id })}`}
+            className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-surface-2"
+            data-testid="report-link"
+          >
+            Report
+          </Link>
           {alertHref ? (
             <Link
               href={alertHref}
@@ -214,6 +235,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
         </div>
       </header>
 
+      <SharedViewParams />
       <CityTabs tab={tab} onChange={setTab} />
 
       {tab === "overview" ? (
@@ -259,6 +281,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
               <CrossCheck data={data} scale={scale} />
             </div>
             <AdviceCard air={data} scale={scale} onMore={() => setTab("health")} />
+            <CigaretteEquivalent lat={place.latitude} lon={place.longitude} />
             {error ? (
               <ErrorState compact title="Refresh failed, showing the last successful reading" message={errorMessage(error)} onRetry={() => void mutate()} />
             ) : null}
@@ -296,6 +319,12 @@ export function CityDashboard({ place }: { place: CityPlace }) {
       {tab === "health" ? (
         <div role="tabpanel" id="panel-health" aria-labelledby="tab-health">
           <HealthPanel lat={place.latitude} lon={place.longitude} scale={scale} alertHref={alertHref} />
+        </div>
+      ) : null}
+
+      {tab === "weather" ? (
+        <div role="tabpanel" id="panel-weather" aria-labelledby="tab-weather">
+          <WeatherPanel lat={place.latitude} lon={place.longitude} />
         </div>
       ) : null}
 

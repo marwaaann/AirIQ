@@ -55,6 +55,8 @@ export type AssistantEvent =
   | { type: "tool_start"; id: string; name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; name: string; ok: boolean; summary: string; keyValues: Record<string, string | number | null> }
   | { type: "retry"; unsupported: string[] }
+  /** The primary model hit its quota; this answer comes from the backup model. */
+  | { type: "model_fallback"; model: string }
   | { type: "notice"; message: string }
   | { type: "done"; rounds: number; grounding: { checked: number; unsupported: string[] } }
   | { type: "error"; code: string; message: string };

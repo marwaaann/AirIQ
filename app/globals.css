@@ -223,3 +223,52 @@ body:has([data-fullbleed]) > footer {
     bottom: 58px;
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Print: the report prints in light colors with no app chrome.               */
+/* ------------------------------------------------------------------------- */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f3f4f6;
+    --border: #d1d5db;
+    --text: #000000;
+    --muted: #374151;
+    --brand: #0f766e;
+    color-scheme: light;
+  }
+  .site-header,
+  .site-footer,
+  .no-print,
+  [data-export-ignore="true"] {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .report-section,
+  figure,
+  table {
+    break-inside: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Chart colors come from JS per theme; force readable ink on paper. */
+  svg text {
+    fill: #374151 !important;
+  }
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.75em;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 14mm;
+}
