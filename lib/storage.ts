@@ -43,11 +43,36 @@ export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback
       cacheValue = memory ?? fallback;
       return cacheValue;
     }
+    let valid = false;
     try {
       const parsed = schema.safeParse(JSON.parse(raw));
-      cacheValue = parsed.success ? parsed.data : fallback;
+      if (parsed.success) {
+        cacheValue = parsed.data;
+        valid = true;
+        // Lenient schemas drop malformed items: persist the cleaned value so
+        // the bad entries are discarded from storage, not just ignored.
+        const cleaned = JSON.stringify(parsed.data);
+        if (cleaned !== JSON.stringify(JSON.parse(raw))) {
+          try {
+            window.localStorage.setItem(key, cleaned);
+            cacheRaw = cleaned;
+          } catch {
+            // Storage full or blocked: the cleaned value still lives in memory.
+          }
+        }
+      }
     } catch {
-      cacheValue = fallback;
+      // Not JSON at all.
+    }
+    if (!valid) {
+      // Corrupted or from an incompatible version: discard it so it can't break later reads.
+      cacheValue = memory ?? fallback;
+      try {
+        window.localStorage.removeItem(key);
+        cacheRaw = null;
+      } catch {
+        // Storage blocked: keep using the fallback in memory.
+      }
     }
     return cacheValue;
   };

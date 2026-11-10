@@ -1,11 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 
 import { AqiGauge } from "@/components/AqiGauge";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { AdviceCard } from "@/components/health/AdviceCard";
+import { HealthPanel } from "@/components/health/HealthPanel";
 import { PollutantCard } from "@/components/PollutantCard";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { useAqiScale } from "@/hooks/useAqiScale";
@@ -30,12 +33,12 @@ const HistoryPanel = dynamic(() => import("@/components/history/HistoryPanel"), 
   loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading history" />,
 });
 
-const TABS = ["overview", "forecast", "history"] as const;
+const TABS = ["overview", "forecast", "history", "health"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { overview: "Overview", forecast: "Forecast", history: "History" };
+const TAB_LABEL: Record<Tab, string> = { overview: "Overview", forecast: "Forecast", history: "History", health: "Health" };
 
 function CityTabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, forecast: null, history: null });
+  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, forecast: null, history: null, health: null });
   function onKey(e: KeyboardEvent<HTMLButtonElement>, t: Tab) {
     const i = TABS.indexOf(t);
     let next: Tab | null = null;
@@ -162,6 +165,18 @@ export function CityDashboard({ place }: { place: CityPlace }) {
     >;
   }, [data]);
 
+  // Prefilled "create alert" link (needs the city's time zone from the API).
+  const alertHref = data
+    ? `/alerts?${new URLSearchParams({
+        new: "1",
+        name,
+        lat: place.latitude.toFixed(4),
+        lon: place.longitude.toFixed(4),
+        tz: data.current.timezone,
+        slug,
+      })}`
+    : null;
+
   const noData =
     data !== undefined &&
     data.current.usAqi === null &&
@@ -178,9 +193,17 @@ export function CityDashboard({ place }: { place: CityPlace }) {
             {formatCoords(place.latitude, place.longitude)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <AqiScaleToggle />
           <FavoriteButton city={city} />
+          {alertHref ? (
+            <Link
+              href={alertHref}
+              className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-surface-2"
+            >
+              Create alert
+            </Link>
+          ) : null}
         </div>
       </header>
 
@@ -228,6 +251,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
               </dl>
               <CrossCheck data={data} scale={scale} />
             </div>
+            <AdviceCard air={data} scale={scale} onMore={() => setTab("health")} />
             {error ? (
               <ErrorState compact title="Refresh failed, showing the last successful reading" message={errorMessage(error)} onRetry={() => void mutate()} />
             ) : null}
@@ -259,6 +283,12 @@ export function CityDashboard({ place }: { place: CityPlace }) {
       {tab === "forecast" ? (
         <div role="tabpanel" id="panel-forecast" aria-labelledby="tab-forecast">
           <ForecastPanel lat={place.latitude} lon={place.longitude} scale={scale} />
+        </div>
+      ) : null}
+
+      {tab === "health" ? (
+        <div role="tabpanel" id="panel-health" aria-labelledby="tab-health">
+          <HealthPanel lat={place.latitude} lon={place.longitude} scale={scale} alertHref={alertHref} />
         </div>
       ) : null}
 

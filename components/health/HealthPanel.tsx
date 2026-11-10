@@ -1,0 +1,119 @@
+"use client";
+
+import Link from "next/link";
+
+import { CategoryBadge } from "@/components/CategoryBadge";
+import { Disclaimer, useAdvice } from "@/components/health/advice-common";
+import { WindowFinder } from "@/components/health/WindowFinder";
+import { ProfileSelector } from "@/components/ProfileSelector";
+import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { useAir } from "@/hooks/useCity";
+import { useProfile } from "@/hooks/useProfile";
+import { errorMessage } from "@/lib/fetcher";
+import type { Recommendation } from "@/lib/health-advice";
+import type { AqiScale } from "@/types/air";
+
+function RecList({ items }: { items: Recommendation[] }) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {items.map((r) => (
+        <li key={r.id} className="text-sm">
+          <p>{r.text}</p>
+          <p className="text-xs text-muted">Source: {r.basis}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: number; scale: AqiScale; alertHref: string | null }) {
+  const { data, error, isLoading, isValidating, mutate } = useAir(lat, lon);
+  const advice = useAdvice(data, scale);
+  const [profile] = useProfile();
+
+  return (
+    <section aria-labelledby="health-title" className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 id="health-title" className="text-lg font-semibold">
+          Health advice
+        </h2>
+        <div className="w-full sm:w-72">
+          <ProfileSelector />
+        </div>
+      </div>
+      <Disclaimer />
+
+      {error && !data ? (
+        <ErrorState title="Couldn't load current air quality" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />
+      ) : isLoading && !data ? (
+        <Skeleton className="h-64 rounded-2xl" label="Loading health advice" />
+      ) : !advice ? (
+        <EmptyState title="No index value for this location">Health advice needs a current AQI reading.</EmptyState>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <CategoryBadge category={advice.category} />
+              <span className="text-sm text-muted">for the {profile.label} profile</span>
+            </div>
+            <p className="text-lg font-semibold">{advice.headline.text}</p>
+            <p className="text-xs text-muted">Source: {advice.headline.basis}</p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section aria-labelledby="h-outdoor" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 lg:row-span-2">
+              <h3 id="h-outdoor" className="font-semibold">
+                Outdoor activity
+              </h3>
+              {advice.activity.map((g) => (
+                <div key={g.kind} className="flex flex-col gap-1.5">
+                  <h4 className="text-sm font-semibold text-muted">{g.label}</h4>
+                  <RecList items={g.items} />
+                </div>
+              ))}
+            </section>
+            <section aria-labelledby="h-indoor" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <h3 id="h-indoor" className="font-semibold">
+                Indoor air
+              </h3>
+              <RecList items={advice.indoor} />
+            </section>
+            <section aria-labelledby="h-protect" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <h3 id="h-protect" className="font-semibold">
+                Protection
+              </h3>
+              <RecList items={advice.protection} />
+              {advice.info.length ? <RecList items={advice.info} /> : null}
+            </section>
+          </div>
+
+          <section aria-labelledby="h-why" className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4 text-sm">
+            <h3 id="h-why" className="font-semibold">
+              Why this advice
+            </h3>
+            <p>{advice.why}</p>
+            <details>
+              <summary className="cursor-pointer text-xs font-medium">All sources used ({advice.bases.length})</summary>
+              <ul className="mt-2 list-disc pl-5 text-xs text-muted">
+                {advice.bases.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </details>
+          </section>
+        </>
+      )}
+
+      <WindowFinder lat={lat} lon={lon} scale={scale} />
+
+      {alertHref ? (
+        <p className="text-sm">
+          <Link href={alertHref} className="font-semibold text-brand underline underline-offset-4">
+            Create an alert for this city
+          </Link>{" "}
+          <span className="text-muted">(uses your profile&rsquo;s threshold)</span>
+        </p>
+      ) : null}
+    </section>
+  );
+}

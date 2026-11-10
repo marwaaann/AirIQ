@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AlertBell } from "@/components/alerts/AlertBell";
 import { CitySearch } from "@/components/CitySearch";
 import { LogoMark } from "@/components/icons";
 import { NavLinks } from "@/components/NavLinks";
@@ -18,7 +19,8 @@ export function SiteHeader() {
         <div className="min-w-0 flex-1 sm:max-w-sm md:ml-4">
           <CitySearch />
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <AlertBell />
           <ThemeToggle />
         </div>
       </div>

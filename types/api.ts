@@ -113,5 +113,7 @@ export interface ForecastResponse {
   /** UTC ISO of the current (latest analysed) hour. */
   now: string;
   model: ModelPayload;
+  /** Daily sunrise/sunset (UTC ISO) for the next 3 days; null if unavailable. */
+  sun: { sunrise: string; sunset: string }[] | null;
   fetchedAt: string;
 }

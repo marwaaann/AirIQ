@@ -2,7 +2,7 @@
 
 Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps, history, forecasts, alerts and an AI assistant, using only authentic public air-quality data.
 
-> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer), Phase 2 (dashboard), Phase 3 (map, heatmap, stations) and Phase 4 (history, forecast, trend model).
+> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer), Phase 2 (dashboard), Phase 3 (map, heatmap, stations), Phase 4 (history, forecast, trend model) and Phase 5 (health advice, smart alerts).
 
 ## Features so far
 
@@ -16,6 +16,9 @@ Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps
 - **City tabs** (`?tab=overview|forecast|history`). Chart code is lazy-loaded, so the Overview tab ships no chart library.
 - **History** (`?range=7|30|90`): daily mean/max chart with category bands (or any single pollutant with its WHO line), a calendar heatmap with patterns and a partial-day state, a weekday × hour heatmap, best/worst day, average, change vs the previous period, typical peak hour, and plain-English insights generated only when the numbers support them.
 - **Forecast**: the official 5-day hourly CAMS forecast with the AirIQ trend model and its 80% range for 48 h, a "now" marker, a daily min/mean/max strip, an agreement indicator, backtest numbers against two baselines, and the cleanest 3-hour windows in the next 48 h (with a warning when even those are unhealthy).
+- **Health advice** (`?tab=health`, plus a compact card on Overview): six profiles (General, Asthma/respiratory, Older adult, Children, Pregnancy, Athlete). Recommendations are grouped into outdoor activity (walking, exercise, commuting, children's play), indoor air and protection. Each shows its source, with a "why" line and the disclaimer "General information, not medical advice."
+- **Safe-time finder:** windows in the next 48 h of the official forecast that stay at or below your profile's threshold, for walking, exercise (optionally daylight only, from Open-Meteo sunrise/sunset) or airing out your home (cleanest hours).
+- **Smart alerts** (`/alerts`): rules per city for AQI, PM2.5, PM10, NO₂ or O₃ on the US or EU scale, on the current reading or the official forecast (next 6/12/24/48 h), with optional quiet hours. Includes a header bell with unread count, on-screen messages, opt-in browser notifications and an alert history. **Alerts only run while AirIQ is open in a browser tab.**
 - Every data view has a skeleton, an error state with Retry, and an empty state.
 
 ## Quick start
@@ -54,7 +57,7 @@ Requires Node.js ≥ 22.18 (native TypeScript type-stripping is used for tests).
 | `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, source sub-indices, in-app EPA cross-check, cached 10 min |
 | `GET /api/grid?south=&west=&north=&east=&zoom=` | Open-Meteo Air Quality (batched multi-location) | ≤64 snapped grid points, current AQI + pollutants + per-pollutant sub-indices, cached 10 min. 400 on inverted or oversized bounds |
 | `GET /api/history?lat=&lon=&days=7\|30\|90` | Open-Meteo Air Quality (`past_days`) | Hourly AQI (both scales), 6 pollutants and per-pollutant sub-indices; fetches 2× the range (max 92 days) for period-over-period; future hours dropped; cached 30 min |
-| `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality (`past_days=28`, `forecast_days=5`) | Official forecast from the current hour + AirIQ trend model, backtest and intervals; cached 15 min |
+| `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality (`past_days=28`, `forecast_days=5`) + Open-Meteo Weather (`daily=sunrise,sunset`) | Official forecast from the current hour, AirIQ trend model, backtest and intervals, and 3 days of sunrise/sunset (`sun: null` if that call fails); cached 15 min |
 | `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 `/locations` + `/locations/{id}/latest` | `{ source: "none", stations: [] }` when no key is set; cached 10 min |
 | (client) BigDataCloud reverse geocode | api.bigdatacloud.net | Labels "Use my location" and map points. No key, called from the browser |
 | (client) Esri World Gray Canvas tiles | server.arcgisonline.com | Light/dark basemap and labels. No key |
@@ -144,3 +147,28 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Insights** are generated only when the data supports them. A peak-hour line needs ≥12 hours with data and a peak-to-low spread of at least max(5, 15% of the mean). A change line needs |change| ≥ 10%, or < 5% to say "about the same". The category-share line needs ≥3 full days.
 - **"Best time outside"** lists the 3 cleanest non-overlapping 3-hour windows in the next 48 h of the OFFICIAL forecast, never bridging gaps. When even those are "Unhealthy"/"Poor" or worse, the UI says there is no good window. The personalised health engine comes in Phase 5.
 - **Browser verification used a production build** (`next start`). After many file edits during a long `next dev` session, the dev server again fell into a "[Fast Refresh] rebuilding" full-reload loop, even with `turbopack.root` pinned. A freshly started dev server did not loop. If it happens, restart `npm run dev`. The VS Code "Console Ninja" extension also injects into this dev server; whether it plays a part is unconfirmed.
+
+### Phase 5: health advice and alerts
+
+- **Alerts only run while a tab is open.** There is no server, service worker or push service: if every AirIQ tab is closed, nothing is checked or sent. With a tab open, alerts are re-checked every 10 minutes, when the tab becomes visible again, and on "Check now". The alerts page says this in an always-visible note.
+- **Browser notifications** are requested only from the "Enable browser notifications" button, never on load. They use `new Notification()` from the page. Browsers that only allow notifications from a service worker (for example Chrome on Android) refuse this, and AirIQ then falls back to in-app alerts only (bell, history, on-screen message). If permission is denied or unsupported, alerts still work in-app and the page explains why.
+- **One rules table** (`lib/health-rules.ts`). Every recommendation is a row with match conditions (scale, category rank, sensitive or general, main pollutant group, profile, local hour, PM2.5 above the WHO guideline) and a `basis` naming its source. The engine (`lib/health-advice.ts`) only selects and orders rows; the only substitution is the WHO ratio number. A unit test checks every scale × category × profile × main pollutant combination for a complete, sourced result.
+- **Sources:** the US EPA AirNow Air Quality Guides (activity guidance by category and sensitive group) for the US AQI. The EEA European Air Quality Index recommendations for the European AQI, because the EPA text is defined in US AQI categories. The EPA Wildfire Smoke Guide and the EPA Guide to Air Cleaners in the Home for windows, purifiers and respirators. WHO 2021 guideline values.
+- **Sensitive groups depend on the pollutant** (`lib/profiles.ts`), following EPA:
+  - Asthma/respiratory: particles, ozone, NO₂, SO₂.
+  - Older adults: particles, ozone, SO₂.
+  - Children: particles, ozone, NO₂, SO₂.
+  - Athletes ("people active outdoors"): ozone only.
+  - Pregnancy: particles only, from the EPA Wildfire Smoke Guide.
+
+  So an athlete gets general-public advice when PM2.5 is the main pollutant, and the "why" line says so. Verified live: London on 2026-11-10 (PM2.5-driven) showed identical advice for General and Athlete, while Delhi showed clearly stricter advice for Asthma than for General.
+- **Masks:** a respirator is mentioned only for particles, at Unhealthy+ (Poor+ on the EU scale) for everyone, or USG+ (Moderate+) for sensitive profiles. It always says it must fit well and seal, and that cloth and surgical masks do little against fine particles. For gases the advice states that masks, including N95s, do not filter ozone, NO₂, SO₂ or CO.
+- **Profile thresholds:** sensitive profiles tighten at the EPA "Unhealthy for Sensitive Groups" line (US 101; EU 40, where EEA sensitive-group advice starts). The default alert and safe-time threshold is 100 US / 40 EU for sensitive profiles and 150 US / 60 EU for General. Alerts fire when the value goes **above** the threshold; safe windows need the value **at or below** it.
+- **Pollutant alerts compare the pollutant's sub-index on the rule's scale** (Open-Meteo's `us_aqi_pm2_5`, `european_aqi_ozone`, …), not µg/m³, so every threshold is an index on a stated scale. Thresholds are stored with their scale and compared only against that scale's value.
+- **Hysteresis:** a rule fires once per episode. A current-reading rule re-arms only after the value falls below 90% of the threshold. A forecast rule re-arms once no forecast hour in its window exceeds the threshold. A forecast alert names the first exceeding span in the city's local time, e.g. "Forecast: US AQI above 207 in Delhi on Tue 13:00–Wed 12:00 local time (official forecast)."
+- **Quiet hours** use the city's time zone, can cross midnight, and suppress only the browser notification. The event is still logged and shown, marked "suppressed (quiet hours)".
+- **Shared requests:** the alert engine is mounted once in the layout and runs one watcher per city. It uses the same SWR keys as the city page (`/api/air`, `/api/forecast`), so rules for one city share requests with each other and with the dashboard.
+- **Multiple tabs** share rule state through localStorage, so an episode normally fires once across tabs. There is no cross-tab lock, so two tabs evaluating in the same instant could, rarely, both notify.
+- **Stored data is validated on every read.** Non-JSON or wrongly shaped values are removed and replaced with defaults. Lists (rules, events) keep their valid items and the cleaned list is written back. Verified in the browser by loading the app with garbage in every AirIQ key.
+- **Safe-time finder:** the window is exactly the next 48 hourly slots. Runs never bridge missing hours. "Daylight only" (exercise only, off by default) splits runs at sunset/sunrise rather than rejecting long runs. If no window qualifies, the least-bad windows are listed and labelled as above the threshold. "Open windows" always lists the cleanest hours.
+- **How notifications were verified:** headless Chrome cannot show notifications, so the browser tests replaced `window.Notification` with a wrapper that records each one created (with permission granted through the DevTools protocol), and counted those. Clicking a real notification (focus the tab, go to the city) could not be exercised headlessly.

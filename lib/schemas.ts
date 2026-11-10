@@ -252,3 +252,12 @@ export const HistoryQuerySchema = LatLonQuerySchema.extend({
     .int()
     .refine((d) => d === 7 || d === 30 || d === 90, "days must be 7, 30 or 90"),
 });
+
+export const SunResponseSchema = z.object({
+  utc_offset_seconds: z.number().default(0),
+  daily: z.object({
+    time: z.array(z.string()),
+    sunrise: z.array(z.string().nullable()),
+    sunset: z.array(z.string().nullable()),
+  }),
+});

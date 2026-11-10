@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { AlertRuntime } from "@/components/alerts/AlertRuntime";
 import { SiteHeader } from "@/components/SiteHeader";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 import "./globals.css";
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Data: Open-Meteo Air Quality (CAMS) and Open-Meteo Geocoding. AQI categories per US EPA and EEA. Model data, not
           medical advice.
         </footer>
+        <AlertRuntime />
       </body>
     </html>
   );

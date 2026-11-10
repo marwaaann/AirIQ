@@ -4,7 +4,7 @@ import { cached } from "@/lib/cache";
 import { pm25SeriesToIndex } from "@/lib/forecast-insights";
 import { DEFAULT_HORIZON, runTrendModel } from "@/lib/forecast-model";
 import { handleRouteError, jsonOk, parseQuery } from "@/lib/http";
-import { getAirSeries } from "@/lib/openmeteo";
+import { getAirSeries, getSunTimes } from "@/lib/openmeteo";
 import { LatLonQuerySchema } from "@/lib/schemas";
 import { localParts } from "@/lib/time";
 import type { ForecastResponse, ModelPayload } from "@/types/api";
@@ -23,7 +23,11 @@ export async function GET(req: NextRequest) {
     const { lat, lon } = parseQuery(req.nextUrl.searchParams, LatLonQuerySchema);
     const key = `forecast:${lat.toFixed(3)},${lon.toFixed(3)}`;
     const body = await cached<ForecastResponse>(key, FORECAST_TTL, async () => {
-      const series = await getAirSeries(lat, lon, TRAIN_DAYS, 5, FORECAST_TTL);
+      // Sun times are optional: a failure there must not break the forecast.
+      const [series, sun] = await Promise.all([
+        getAirSeries(lat, lon, TRAIN_DAYS, 5, FORECAST_TTL),
+        getSunTimes(lat, lon, 3).catch(() => null),
+      ]);
       const pts = series.points;
       const nowMs = Date.now();
       let nowIdx = -1;
@@ -86,6 +90,7 @@ export async function GET(req: NextRequest) {
         official: { ...series, points: pts.slice(nowIdx) },
         now: pts[nowIdx].time,
         model,
+        sun,
         fetchedAt: new Date().toISOString(),
       };
     });

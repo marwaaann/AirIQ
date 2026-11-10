@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { CategoryBadge, CategorySwatch } from "@/components/CategoryBadge";
 import { ForecastChart, type ForecastRow } from "@/components/forecast/ForecastChart";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
+import { FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { getCategory } from "@/lib/aqi-categories";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { agreement, cleanestWindows, dailyRanges } from "@/lib/forecast-insights";
@@ -38,9 +39,9 @@ const fmtM = (x: MetricsPayload) => `${x.mae.toFixed(1)} / ${x.rmse.toFixed(1)}`
 
 export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: number; scale: AqiScale }) {
   const { data, error, isLoading, isValidating, mutate } = useSWR<ForecastResponse, Error>(
-    `/api/forecast?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`,
+    forecastUrl(lat, lon),
     apiFetch,
-    { revalidateOnFocus: false, refreshInterval: 15 * 60 * 1000, keepPreviousData: true },
+    { revalidateOnFocus: false, refreshInterval: FORECAST_REFRESH_MS, keepPreviousData: true },
   );
 
   const view = useMemo(() => {

@@ -13,6 +13,7 @@ import {
   GeocodeResponseSchema,
   WEATHER_VARIABLES,
   WeatherResponseSchema,
+  SunResponseSchema,
   type AqResponse,
 } from "@/lib/schemas";
 import type {
@@ -438,4 +439,32 @@ export async function getWeather(lat: number, lon: number, pastDays: number, for
       : null,
     points,
   };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Sunrise / sunset                                                           */
+/* ------------------------------------------------------------------------- */
+
+/** Daily sunrise/sunset (UTC ISO) for the next `days` local days. */
+export async function getSunTimes(lat: number, lon: number, days = 3): Promise<{ sunrise: string; sunset: string }[]> {
+  const params = new URLSearchParams({
+    latitude: String(coord(lat)),
+    longitude: String(coord(lon)),
+    daily: "sunrise,sunset",
+    forecast_days: String(days),
+    timezone: "auto",
+  });
+  const r = await fetchJson(`${WEATHER_BASE}?${params}`, {
+    upstream: "Open-Meteo Weather",
+    schema: SunResponseSchema,
+    revalidate: 6 * 60 * 60,
+  });
+  const out: { sunrise: string; sunset: string }[] = [];
+  r.daily.time.forEach((_, i) => {
+    const rise = r.daily.sunrise[i];
+    const set = r.daily.sunset[i];
+    // Polar day/night: no sunrise or sunset → skip that day rather than guess.
+    if (rise && set) out.push({ sunrise: localToUtcIso(rise, r.utc_offset_seconds), sunset: localToUtcIso(set, r.utc_offset_seconds) });
+  });
+  return out;
 }

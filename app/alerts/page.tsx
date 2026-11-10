@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { ComingSoon } from "@/components/ComingSoon";
+import { AlertsPage } from "@/components/alerts/AlertsPage";
+import { Skeleton } from "@/components/states";
 
-export const metadata: Metadata = { title: "Smart alerts" };
+export const metadata: Metadata = {
+  title: "Smart alerts",
+  description: "Air-quality alerts for your cities, based on current readings and the official forecast. They run while AirIQ is open.",
+};
 
 export default function Page() {
-  return <ComingSoon title="Smart alerts" phase={5} description="Set AQI and pollutant thresholds for your cities and health profile. Get browser notifications for current readings and the forecast." />;
+  return (
+    // useSearchParams (prefilled "create alert" links) needs a Suspense boundary on a static page.
+    <Suspense fallback={<Skeleton className="h-96 rounded-2xl" label="Loading alerts" />}>
+      <AlertsPage />
+    </Suspense>
+  );
 }

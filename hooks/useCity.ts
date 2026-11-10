@@ -21,6 +21,13 @@ export function airUrl(latitude: number, longitude: number): string {
   return `/api/air?lat=${latitude.toFixed(3)}&lon=${longitude.toFixed(3)}`;
 }
 
+/** Same key everywhere so SWR shares one request per city (forecast panel, health tab, alert engine). */
+export function forecastUrl(latitude: number, longitude: number): string {
+  return `/api/forecast?lat=${latitude.toFixed(3)}&lon=${longitude.toFixed(3)}`;
+}
+
+export const FORECAST_REFRESH_MS = 15 * 60 * 1000;
+
 /** Live air quality for a coordinate via /api/air, auto-refreshing. */
 export function useAir(latitude: number | null, longitude: number | null) {
   const key = latitude !== null && longitude !== null ? airUrl(latitude, longitude) : null;
