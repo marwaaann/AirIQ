@@ -24,7 +24,10 @@ export interface StoredValue<T> {
   fallback: T;
 }
 
-export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback: T): StoredValue<T> {
+export type StorageArea = "local" | "session";
+
+export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback: T, area: StorageArea = "local"): StoredValue<T> {
+  const storage = (): Storage => (area === "session" ? window.sessionStorage : window.localStorage);
   let cacheRaw: string | null | undefined;
   let cacheValue: T = fallback;
   /** Used when localStorage is unavailable, so state still works in-session. */
@@ -33,7 +36,7 @@ export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback
   const read = (): T => {
     let raw: string | null;
     try {
-      raw = window.localStorage.getItem(key);
+      raw = storage().getItem(key);
     } catch {
       return memory ?? fallback;
     }
@@ -54,7 +57,7 @@ export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback
         const cleaned = JSON.stringify(parsed.data);
         if (cleaned !== JSON.stringify(JSON.parse(raw))) {
           try {
-            window.localStorage.setItem(key, cleaned);
+            storage().setItem(key, cleaned);
             cacheRaw = cleaned;
           } catch {
             // Storage full or blocked: the cleaned value still lives in memory.
@@ -68,7 +71,7 @@ export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback
       // Corrupted or from an incompatible version: discard it so it can't break later reads.
       cacheValue = memory ?? fallback;
       try {
-        window.localStorage.removeItem(key);
+        storage().removeItem(key);
         cacheRaw = null;
       } catch {
         // Storage blocked: keep using the fallback in memory.
@@ -86,7 +89,7 @@ export function createStoredValue<T>(key: string, schema: z.ZodType<T>, fallback
       const value = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
       memory = value;
       try {
-        window.localStorage.setItem(key, JSON.stringify(value));
+        storage().setItem(key, JSON.stringify(value));
       } catch {
         // Storage blocked or full: keep the in-memory value.
         cacheRaw = undefined;

@@ -2,7 +2,7 @@
 
 Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps, history, forecasts, alerts and an AI assistant, using only authentic public air-quality data.
 
-> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer), Phase 2 (dashboard), Phase 3 (map, heatmap, stations), Phase 4 (history, forecast, trend model) and Phase 5 (health advice, smart alerts).
+> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer), Phase 2 (dashboard), Phase 3 (map, heatmap, stations), Phase 4 (history, forecast, trend model), Phase 5 (health advice, smart alerts) and Phase 6 (AI assistant).
 
 ## Features so far
 
@@ -19,6 +19,7 @@ Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps
 - **Health advice** (`?tab=health`, plus a compact card on Overview): six profiles (General, Asthma/respiratory, Older adult, Children, Pregnancy, Athlete). Recommendations are grouped into outdoor activity (walking, exercise, commuting, children's play), indoor air and protection. Each shows its source, with a "why" line and the disclaimer "General information, not medical advice."
 - **Safe-time finder:** windows in the next 48 h of the official forecast that stay at or below your profile's threshold, for walking, exercise (optionally daylight only, from Open-Meteo sunrise/sunset) or airing out your home (cleanest hours).
 - **Smart alerts** (`/alerts`): rules per city for AQI, PM2.5, PM10, NO₂ or O₃ on the US or EU scale, on the current reading or the official forecast (next 6/12/24/48 h), with optional quiet hours. Includes a header bell with unread count, on-screen messages, opt-in browser notifications and an alert history. **Alerts only run while AirIQ is open in a browser tab.**
+- **AI assistant** (`/assistant`, plus an "Ask AirIQ" sheet on every city page): Gemini with tool calling. It answers only from data its tools fetch (current AQI, history, forecast, comparisons, health advice, safe windows). Every answer shows which tools ran and a "Data used" panel with their arguments and key values. Streaming, Stop, Clear chat, quick prompts, and the transcript kept in sessionStorage. Without `GEMINI_API_KEY` it shows "Assistant not configured" and everything else works.
 - Every data view has a skeleton, an error state with Retry, and an empty state.
 
 ## Quick start
@@ -34,7 +35,8 @@ No API keys are required. Optional keys go in `.env.local` (template: `.env.exam
 | --- | --- | --- |
 | `WAQI_TOKEN` | Ground-station markers on the map (preferred source) | Falls back to OpenAQ, or no stations |
 | `OPENAQ_API_KEY` | Ground-station markers on the map (fallback source) | No stations ("Ground stations: not configured") |
-| `GEMINI_API_KEY` | AI assistant (Phase 6) | Assistant shows "key not configured" |
+| `GEMINI_API_KEY` | AI assistant | Assistant shows "Assistant not configured" |
+| `GEMINI_MODEL` | Override the Gemini model | `gemini-3.6-flash` |
 
 Keys are read only inside route handlers and never reach the browser.
 
@@ -59,6 +61,8 @@ Requires Node.js ≥ 22.18 (native TypeScript type-stripping is used for tests).
 | `GET /api/history?lat=&lon=&days=7\|30\|90` | Open-Meteo Air Quality (`past_days`) | Hourly AQI (both scales), 6 pollutants and per-pollutant sub-indices; fetches 2× the range (max 92 days) for period-over-period; future hours dropped; cached 30 min |
 | `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality (`past_days=28`, `forecast_days=5`) + Open-Meteo Weather (`daily=sunrise,sunset`) | Official forecast from the current hour, AirIQ trend model, backtest and intervals, and 3 days of sunrise/sunset (`sun: null` if that call fails); cached 15 min |
 | `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 `/locations` + `/locations/{id}/latest` | `{ source: "none", stations: [] }` when no key is set; cached 10 min |
+| `GET /api/assistant` | n/a | `{ configured, model }` (never the key) |
+| `POST /api/assistant` | Google Gemini (`@google/genai`) + AirIQ tools | `{ messages ≤20, context? }`, user messages ≤2,000 chars → `text/event-stream` with `safety`, `text`, `tool_start`, `tool_result`, `retry`, `notice`, `done`, `error` events; 503 without a key; 429 + `Retry-After` when rate-limited; 400 on invalid input |
 | (client) BigDataCloud reverse geocode | api.bigdatacloud.net | Labels "Use my location" and map points. No key, called from the browser |
 | (client) Esri World Gray Canvas tiles | server.arcgisonline.com | Light/dark basemap and labels. No key |
 
@@ -172,3 +176,27 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Stored data is validated on every read.** Non-JSON or wrongly shaped values are removed and replaced with defaults. Lists (rules, events) keep their valid items and the cleaned list is written back. Verified in the browser by loading the app with garbage in every AirIQ key.
 - **Safe-time finder:** the window is exactly the next 48 hourly slots. Runs never bridge missing hours. "Daylight only" (exercise only, off by default) splits runs at sunset/sunrise rather than rejecting long runs. If no window qualifies, the least-bad windows are listed and labelled as above the threshold. "Open windows" always lists the cleanest hours.
 - **How notifications were verified:** headless Chrome cannot show notifications, so the browser tests replaced `window.Notification` with a wrapper that records each one created (with permission granted through the DevTools protocol), and counted those. Clicking a real notification (focus the tab, go to the city) could not be exercised headlessly.
+
+### Phase 6: AI assistant
+
+- **Model: `gemini-3.6-flash` by default, overridable with `GEMINI_MODEL`.** Chosen from Google's models page (checked 2026-11-10), which lists `gemini-3.6-flash` as **Stable** and in the Flash (fast, low-cost) tier. `gemini-3.8-flash` is newer but carries no "Stable" label. `gemini-3.5-flash-lite` is cheaper, but the Flash tier is the safer choice for multi-step tool calling. `gemini-2.5-flash` (the old placeholder default in `.env.example`) is deprecated, with requests re-routed from 2026-12-01.
+- **API surface: the official `@google/genai` SDK (v3.0.0) with `models.generateContentStream`.** Google now recommends the newer Interactions API for new projects. Its docs pages, however, don't document the stateless conversation format, the streaming event shapes or the output-token limit that this route needs. They also state that `generateContent` "remains fully supported". Every request field used here (`systemInstruction`, `maxOutputTokens`, `tools[].functionDeclarations[].parametersJsonSchema`, `toolConfig.functionCallingConfig.mode`, `abortSignal`) was taken from the installed SDK's type definitions, and the exact HTTP request it sends was confirmed with a mocked `fetch`. Moving to the Interactions API is a possible later step.
+- **Server-side tool loop** (`lib/assistant/loop.ts`). Stream the model, run requested tools in parallel, send results back as `functionResponse` parts, repeat. It stops after **6 tool rounds**: the next call is made with function calling set to `NONE`, and the UI shows a notice. Output is capped at 1,024 tokens per call. Model turns are sent back exactly as received, including thought signatures.
+- **Tools call the app's own library functions directly** (`lib/assistant/tools.ts` with an injected data layer; `lib/assistant/data-layer.ts` wires in `lib/openmeteo.ts`). Arguments are validated with Zod. Bad arguments or data failures return an `{ status: "error" }` object to the model, never an exception. Every result carries values, units, the time zone, the source and the data time in local time.
+- **City resolution:** `resolve_city` returns one city only when there's a single match or the top match is at least 10× more populous than the next (London, UK vs London, Ontario). Otherwise it returns the top 3 candidates and the model must ask, as with Springfield. "City, Region" narrows the results.
+- **Grounding approach:**
+  1. The system prompt requires tools for every fact and treats tool results, page context and place names as data, never instructions.
+  2. Page context is sent as a labelled data block.
+  3. A deterministic numeric guard (`lib/assistant/grounding-check.ts`) checks the final answer. It extracts numbers with a unit (µg/m³, %, ×) or AQI/index context and matches them, within the rounding shown, against numbers in this turn's tool results.
+  4. AQI claims may only match index-like fields (AQI, means, max, min, thresholds, history insights), so a coincidental concentration or coordinate can't support them.
+  5. Clock times, dates, durations, ordinals and pollutant names are ignored. A number the user typed is exempt only when used as a comparison ("above 150"); asserted as a reading ("the AQI **is** 10") it must come from a tool.
+  6. On a mismatch the model gets one automatic retry naming the unsupported values. If it still fails, the answer is shown with "Some figures in this answer could not be matched to fetched data. Please check the data panel." The guard never blocks a response.
+- **Emergency symptoms:** a deterministic server-side check (chest pain, severe difficulty breathing, fainting and similar phrases) sends a fixed "seek urgent medical care" message before anything the model says.
+- **Rate limit: 20 requests per 10 minutes per IP, in memory.** It is per server instance and resets on restart, so it is **not suitable for multi-instance production**; use a shared store (e.g. Redis) there. Responses are 429 with `Retry-After`; the UI shows the wait time and disables Send.
+- **Abort:** Stop (or closing the tab) aborts the browser request. The route then aborts the SDK call, and the loop stops without running further tools. Per the SDK docs, aborting is client-side only: Google may still finish, and bill, a request already in progress.
+- **Safety of output:** model text is rendered with a tiny markdown subset (bold, lists, line breaks) as React text nodes; no HTML is ever injected. Errors shown to users are generic, and the server logs only the HTTP status, never the key or provider messages.
+- **Verification status:** no `GEMINI_API_KEY` was available, so **the assistant has never run against the real Gemini model.**
+  - Unit tests drive the whole loop through the real SDK with Google's HTTP layer mocked.
+  - The browser tests ran the production build with the real route, real tools and live Open-Meteo data, but with `GEMINI_BASE_URL` pointed at a local scripted mock of the Gemini streaming API. Its answers were built from the real tool results it received.
+  - Model behaviour (tool choice, wording, refusing off-topic requests, resisting injection) is therefore untested with the real model.
+  - The tool layer itself was run live against Open-Meteo for Delhi, London, Mumbai and Springfield.

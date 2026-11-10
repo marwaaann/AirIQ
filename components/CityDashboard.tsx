@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 
 import { AqiGauge } from "@/components/AqiGauge";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
+import { AskAirIQ } from "@/components/assistant/AskAirIQ";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { AdviceCard } from "@/components/health/AdviceCard";
 import { HealthPanel } from "@/components/health/HealthPanel";
@@ -15,6 +16,7 @@ import { useAqiScale } from "@/hooks/useAqiScale";
 import { useActiveCity, useAir } from "@/hooks/useCity";
 import { useReverseLabel } from "@/hooks/useGeolocation";
 import { useUrlParam } from "@/hooks/useUrlParam";
+import { useProfile } from "@/hooks/useProfile";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
@@ -134,10 +136,15 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   const { data, error, isLoading, isValidating, mutate } = useAir(place.latitude, place.longitude);
   const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
   const [tab, setTab] = useUrlParam<Tab>("tab", TABS, "overview");
+  const [profile] = useProfile();
 
   const name = place.labelKind ? label.name : place.name;
   const subtitle = place.labelKind ? label.subtitle : place.subtitle;
   const slug = place.labelKind && resolved ? makeCitySlug(label.name, place.latitude, place.longitude) : place.slug;
+  const chatContext = useMemo(
+    () => ({ city: name, lat: place.latitude, lon: place.longitude, profile: profile.id, scale }),
+    [name, place.latitude, place.longitude, profile.id, scale],
+  );
 
   const city: SavedCity = useMemo(
     () => ({ slug, name, subtitle, latitude: place.latitude, longitude: place.longitude }),
@@ -297,6 +304,11 @@ export function CityDashboard({ place }: { place: CityPlace }) {
           <HistoryPanel lat={place.latitude} lon={place.longitude} scale={scale} />
         </div>
       ) : null}
+      <AskAirIQ
+        chatId={`city:${slug}`}
+        context={chatContext}
+        contextLabel={`${name} · ${profile.label} profile · ${scale === "us" ? "US AQI" : "European AQI"}`}
+      />
     </div>
   );
 }

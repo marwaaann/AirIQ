@@ -12,6 +12,7 @@
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
+    "@google/genai": "^3.0.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
