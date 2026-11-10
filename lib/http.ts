@@ -48,7 +48,10 @@ export async function fetchJson<S extends z.ZodType>(url: string, opts: FetchJso
     try {
       res = await fetch(url, {
         headers: { Accept: "application/json", ...opts.headers },
-        next: { revalidate },
+        // Never use Next's persistent fetch cache: after an idle period it serves
+        // the stale copy first (stale-while-revalidate), which surfaced hours-old
+        // readings. Freshness is handled by the in-process TTL cache below.
+        cache: "no-store",
         signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
       });
     } catch (err) {

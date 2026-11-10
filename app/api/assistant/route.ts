@@ -95,13 +95,17 @@ export async function POST(req: NextRequest) {
         if (!upstream.signal.aborted) {
           const status = err instanceof UpstreamModelError ? err.status : null;
           // Log only non-sensitive facts; never the key or raw provider messages.
-          console.error("[assistant] upstream failure", { status, kind: err instanceof Error ? err.name : typeof err });
+          console.error("[assistant] upstream failure", {
+            status,
+            phase: err instanceof Error ? err.message : "unknown",
+            cause: err instanceof UpstreamModelError ? err.causeSummary : err instanceof Error ? err.name : typeof err,
+          });
           emit({
             type: "error",
             code: status === 429 ? "upstream_busy" : "upstream",
             message:
               status === 429
-                ? "The AI service is busy right now. Please try again in a minute."
+                ? "The AI service's usage limit has been reached. Please try again later."
                 : "The AI service could not answer right now. Please try again.",
           });
         }

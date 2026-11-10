@@ -1,12 +1,12 @@
 /**
  * Server-side caching.
  *
- * Two layers:
- *  1. Next.js data cache via `fetch(url, { next: { revalidate } })` (persists
- *     across requests in production).
- *  2. A small in-process TTL cache with in-flight de-duplication so that
- *     concurrent identical requests (e.g. the map asking for the same grid
- *     twice) hit the upstream API once, also in `next dev`.
+ * Upstream calls use `cache: "no-store"` (see lib/http.ts) plus this small
+ * in-process TTL cache with in-flight de-duplication, so concurrent identical
+ * requests hit the upstream API once and data is never older than the TTL.
+ * Next's persistent fetch cache is deliberately NOT used: it serves a stale
+ * copy first after an idle period, which showed hours-old readings.
+ * Responses also carry Cache-Control headers for CDNs (cacheHeaders).
  */
 
 /** Default upstream revalidation window (seconds). Spec: 10–15 minutes. */

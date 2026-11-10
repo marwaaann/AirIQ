@@ -42,10 +42,13 @@ export interface ModelClient {
 
 export class UpstreamModelError extends Error {
   readonly status: number | null;
-  constructor(message: string, status: number | null) {
+  /** Server-log-only description of the underlying cause (redacted); never sent to clients. */
+  readonly causeSummary: string | null;
+  constructor(message: string, status: number | null, causeSummary: string | null = null) {
     super(message);
     this.name = "UpstreamModelError";
     this.status = status;
+    this.causeSummary = causeSummary;
   }
 }
 

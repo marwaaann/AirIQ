@@ -179,7 +179,8 @@ export const FUNCTION_DECLARATIONS = [
   },
   {
     name: "compare_cities",
-    description: "Compare the current air quality of 2–4 already-resolved cities. Returns each city's US and European AQI and main pollutant, ranked from cleanest to most polluted (by US AQI).",
+    description:
+      "Compare the current air quality of 2–4 already-resolved cities. Returns each city's US AQI, category and main pollutant, and European AQI, category and main pollutant, ranked from cleanest to most polluted (by US AQI).",
     parametersJsonSchema: {
       type: "object",
       properties: {
@@ -430,9 +431,11 @@ async function toolCompare(a: z.infer<typeof ARG_SCHEMAS.compare_cities>, d: Ass
       status: "ok" as const,
       usAqi: cur.usAqi,
       usCategory: cur.usAqi === null ? null : getCategory(cur.usAqi, "us").label,
+      usMainPollutant: mainName(cur.dominantUs),
       europeanAqi: cur.euAqi,
       europeanCategory: cur.euAqi === null ? null : getCategory(cur.euAqi, "eu").label,
-      mainPollutant: mainName(cur.dominantUs),
+      // Both scales, explicitly: real Gemini once guessed the EU main pollutant when only the US one was returned.
+      europeanMainPollutant: mainName(cur.dominantEu),
       timezone: cur.timezone,
       dataTime: dt,
     };
