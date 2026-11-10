@@ -50,3 +50,68 @@ export interface WeatherResponseBody {
   weather: WeatherSeries;
   fetchedAt: string;
 }
+
+/* ------------------------------------------------------------------------- */
+/* History & forecast                                                         */
+/* ------------------------------------------------------------------------- */
+
+export type HistoryRange = 7 | 30 | 90;
+
+export interface HistoryResponse {
+  /** Hourly points up to the current hour (no future hours), oldest first. */
+  series: AirSeries;
+  /** Requested display range in days. */
+  days: HistoryRange;
+  /** Days actually fetched (2× range when available, for period-over-period). */
+  fetchedPastDays: number;
+  fetchedAt: string;
+}
+
+export interface MetricsPayload {
+  mae: number;
+  rmse: number;
+  n: number;
+}
+
+export interface ModelForecastPoint {
+  /** UTC ISO */
+  time: string;
+  k: number;
+  pm25: number;
+  pm25Lo: number;
+  pm25Hi: number;
+  us: number | null;
+  usLo: number | null;
+  usHi: number | null;
+  eu: number | null;
+  euLo: number | null;
+  euHi: number | null;
+}
+
+export type ModelPayload =
+  | {
+      status: "ok";
+      params: { alpha: number; beta: number; gamma: number; phi: number };
+      trainHours: number;
+      validHours: number;
+      backtest: {
+        holdout: number;
+        trainHours: number;
+        /** PM2.5 error in µg/m³ over the held-out hours. */
+        model: MetricsPayload;
+        persistence: MetricsPayload;
+        seasonalNaive: MetricsPayload;
+      };
+      intervals: { from: number; to: number; q10: number; q90: number; n: number }[];
+      points: ModelForecastPoint[];
+    }
+  | { status: "insufficient"; reason: string; validHours: number; trainHours: number };
+
+export interface ForecastResponse {
+  /** Official CAMS forecast via Open-Meteo, from the current hour onward. */
+  official: AirSeries;
+  /** UTC ISO of the current (latest analysed) hour. */
+  now: string;
+  model: ModelPayload;
+  fetchedAt: string;
+}

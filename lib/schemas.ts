@@ -71,6 +71,17 @@ export const AqHourlySchema = z.object({
   nitrogen_dioxide: numArray.optional(),
   sulphur_dioxide: numArray.optional(),
   ozone: numArray.optional(),
+  us_aqi_pm2_5: numArray.optional(),
+  us_aqi_pm10: numArray.optional(),
+  us_aqi_nitrogen_dioxide: numArray.optional(),
+  us_aqi_sulphur_dioxide: numArray.optional(),
+  us_aqi_ozone: numArray.optional(),
+  us_aqi_carbon_monoxide: numArray.optional(),
+  european_aqi_pm2_5: numArray.optional(),
+  european_aqi_pm10: numArray.optional(),
+  european_aqi_nitrogen_dioxide: numArray.optional(),
+  european_aqi_sulphur_dioxide: numArray.optional(),
+  european_aqi_ozone: numArray.optional(),
 });
 
 export const AqResponseSchema = z.object({
@@ -233,4 +244,11 @@ export const OpenAqLatestItemSchema = z.object({
 
 export const OpenAqLatestResponseSchema = z.object({
   results: z.array(z.unknown()),
+});
+
+export const HistoryQuerySchema = LatLonQuerySchema.extend({
+  days: z.coerce
+    .number()
+    .int()
+    .refine((d) => d === 7 || d === 30 || d === 90, "days must be 7, 30 or 90"),
 });

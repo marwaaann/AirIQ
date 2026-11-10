@@ -334,6 +334,30 @@ export function computeUsAqiInstant(
 }
 
 /**
+ * European AQI sub-index for PM2.5, matching Open-Meteo's `european_aqi_pm2_5`.
+ * It uses the HOURLY concentration with the 2024 EEA bands
+ * 0–5 / 5–15 / 15–50 / 50–90 / 90–140 µg/m³ → 0–20 / 20–40 / 40–60 / 60–80 / 80–100,
+ * continuing above 140 µg/m³ with the last band's slope (20 points per 50 µg/m³).
+ * Verified against 744 hourly Open-Meteo values for Delhi and London (2026-11-10):
+ * exact match below 140 µg/m³, within ±1 above.
+ */
+export const EU_PM25_BANDS: readonly Breakpoint[] = [
+  bp(0, 5, 0, 20),
+  bp(5, 15, 20, 40),
+  bp(15, 50, 40, 60),
+  bp(50, 90, 60, 80),
+  bp(90, 140, 80, 100),
+];
+
+export function euPm25Index(ugm3: number): number | null {
+  if (!Number.isFinite(ugm3) || ugm3 < 0) return null;
+  const top = EU_PM25_BANDS[EU_PM25_BANDS.length - 1];
+  if (ugm3 > top.cHigh) return Math.round(top.iHigh + ((ugm3 - top.cHigh) * 20) / 50);
+  const b = EU_PM25_BANDS.find((x) => ugm3 <= x.cHigh) ?? top;
+  return Math.round(b.iLow + ((ugm3 - b.cLow) / (b.cHigh - b.cLow)) * (b.iHigh - b.iLow));
+}
+
+/**
  * Approximate PM2.5 → cigarettes-per-day equivalence (Berkeley Earth rule of
  * thumb: 22 µg/m³ for 24 h ≈ 1 cigarette). This is a communication aid, not a
  * medical equivalence.

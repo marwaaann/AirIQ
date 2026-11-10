@@ -39,3 +39,26 @@ export function formatRatio(r: number): string {
   if (r >= 10) return Math.round(r).toString();
   return r.toFixed(1);
 }
+
+const localFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Format a UTC instant in the CITY's time zone (never the browser's). */
+export function formatInZone(iso: string | number, timeZone: string, opts: Intl.DateTimeFormatOptions): string {
+  const key = `${timeZone}|${JSON.stringify(opts)}`;
+  let f = localFormatters.get(key);
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat("en-GB", { ...opts, timeZone });
+    } catch {
+      f = new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" });
+    }
+    localFormatters.set(key, f);
+  }
+  return f.format(new Date(iso));
+}
+
+/** "Mon 3 Nov" for a local "YYYY-MM-DD" date (calendar date, zone-independent). */
+export function formatLocalDate(date: string, opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" }): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+}

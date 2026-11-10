@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 
 import { AqiGauge } from "@/components/AqiGauge";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
@@ -10,6 +11,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { useActiveCity, useAir } from "@/hooks/useCity";
 import { useReverseLabel } from "@/hooks/useGeolocation";
+import { useUrlParam } from "@/hooks/useUrlParam";
 import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { errorMessage } from "@/lib/fetcher";
@@ -17,6 +19,61 @@ import { formatCoords, makeCitySlug, type LabelKind } from "@/lib/slug";
 import type { AirResponse } from "@/types/api";
 import type { AqiScale } from "@/types/air";
 import type { SavedCity } from "@/types/city";
+
+/** Chart code is lazy-loaded so the Overview tab stays light. */
+const ForecastPanel = dynamic(() => import("@/components/forecast/ForecastPanel"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading forecast" />,
+});
+const HistoryPanel = dynamic(() => import("@/components/history/HistoryPanel"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 rounded-2xl" label="Loading history" />,
+});
+
+const TABS = ["overview", "forecast", "history"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_LABEL: Record<Tab, string> = { overview: "Overview", forecast: "Forecast", history: "History" };
+
+function CityTabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, forecast: null, history: null });
+  function onKey(e: KeyboardEvent<HTMLButtonElement>, t: Tab) {
+    const i = TABS.indexOf(t);
+    let next: Tab | null = null;
+    if (e.key === "ArrowRight") next = TABS[(i + 1) % TABS.length];
+    else if (e.key === "ArrowLeft") next = TABS[(i + TABS.length - 1) % TABS.length];
+    else if (e.key === "Home") next = TABS[0];
+    else if (e.key === "End") next = TABS[TABS.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    onChange(next);
+    refs.current[next]?.focus();
+  }
+  return (
+    <div role="tablist" aria-label="City views" className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border [scrollbar-width:none]">
+      {TABS.map((t) => (
+        <button
+          key={t}
+          ref={(el) => {
+            refs.current[t] = el;
+          }}
+          type="button"
+          role="tab"
+          id={`tab-${t}`}
+          aria-selected={tab === t}
+          aria-controls={`panel-${t}`}
+          tabIndex={tab === t ? 0 : -1}
+          onClick={() => onChange(t)}
+          onKeyDown={(e) => onKey(e, t)}
+          className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
+            tab === t ? "border-text text-text" : "border-transparent text-muted hover:text-text"
+          }`}
+        >
+          {TAB_LABEL[t]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface CityPlace {
   slug: string;
@@ -73,6 +130,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   const [, setActiveCity] = useActiveCity();
   const { data, error, isLoading, isValidating, mutate } = useAir(place.latitude, place.longitude);
   const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
+  const [tab, setTab] = useUrlParam<Tab>("tab", TABS, "overview");
 
   const name = place.labelKind ? label.name : place.name;
   const subtitle = place.labelKind ? label.subtitle : place.subtitle;
@@ -91,7 +149,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   // Once a geolocated place has a real name, make the URL shareable without reloading.
   useEffect(() => {
     if (place.labelKind && resolved && window.location.pathname !== `/city/${slug}`) {
-      window.history.replaceState(null, "", `/city/${slug}`);
+      window.history.replaceState(null, "", `/city/${slug}${window.location.search}`);
     }
   }, [place.labelKind, resolved, slug]);
 
@@ -126,6 +184,10 @@ export function CityDashboard({ place }: { place: CityPlace }) {
         </div>
       </header>
 
+      <CityTabs tab={tab} onChange={setTab} />
+
+      {tab === "overview" ? (
+      <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
       {error && !data ? (
         <ErrorState
           title="Couldn't load live air quality"
@@ -191,15 +253,20 @@ export function CityDashboard({ place }: { place: CityPlace }) {
           </section>
         </div>
       )}
+      </div>
+      ) : null}
 
-      <section aria-labelledby="hf-title" className="rounded-2xl border border-dashed border-border p-6">
-        <h2 id="hf-title" className="text-lg font-semibold">
-          History and forecast
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          7/30/90-day history, the 5-day forecast and the in-app trend model arrive in Phase 4.
-        </p>
-      </section>
+      {tab === "forecast" ? (
+        <div role="tabpanel" id="panel-forecast" aria-labelledby="tab-forecast">
+          <ForecastPanel lat={place.latitude} lon={place.longitude} scale={scale} />
+        </div>
+      ) : null}
+
+      {tab === "history" ? (
+        <div role="tabpanel" id="panel-history" aria-labelledby="tab-history">
+          <HistoryPanel lat={place.latitude} lon={place.longitude} scale={scale} />
+        </div>
+      ) : null}
     </div>
   );
 }

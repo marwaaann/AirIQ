@@ -65,15 +65,54 @@ function pollutantsAt(h: NonNullable<AqResponse["hourly"]>, i: number): Pollutan
   };
 }
 
+type AqHourly = NonNullable<AqResponse["hourly"]>;
+
+/** Hourly sub-indices at index i, if the series was requested with them. */
+function hourlySubIndices(h: AqHourly, i: number, scale: "us" | "eu"): SubIndexValues | undefined {
+  const raw: Partial<Record<Pollutant, number | null>> =
+    scale === "us"
+      ? {
+          pm2_5: at(h.us_aqi_pm2_5, i),
+          pm10: at(h.us_aqi_pm10, i),
+          nitrogen_dioxide: at(h.us_aqi_nitrogen_dioxide, i),
+          sulphur_dioxide: at(h.us_aqi_sulphur_dioxide, i),
+          ozone: at(h.us_aqi_ozone, i),
+          carbon_monoxide: at(h.us_aqi_carbon_monoxide, i),
+        }
+      : {
+          pm2_5: at(h.european_aqi_pm2_5, i),
+          pm10: at(h.european_aqi_pm10, i),
+          nitrogen_dioxide: at(h.european_aqi_nitrogen_dioxide, i),
+          sulphur_dioxide: at(h.european_aqi_sulphur_dioxide, i),
+          ozone: at(h.european_aqi_ozone, i),
+        };
+  const out: SubIndexValues = {};
+  let any = false;
+  for (const [k, v] of Object.entries(raw) as [Pollutant, number | null][]) {
+    if (v !== null) {
+      out[k] = v;
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
 function toSeries(r: AqResponse): AirSeries {
   const h = r.hourly;
   const points: HourlyPoint[] = h
-    ? h.time.map((t, i) => ({
-        time: localToUtcIso(t, r.utc_offset_seconds),
-        usAqi: at(h.us_aqi, i),
-        euAqi: at(h.european_aqi, i),
-        pollutants: pollutantsAt(h, i),
-      }))
+    ? h.time.map((t, i) => {
+        const p: HourlyPoint = {
+          time: localToUtcIso(t, r.utc_offset_seconds),
+          usAqi: at(h.us_aqi, i),
+          euAqi: at(h.european_aqi, i),
+          pollutants: pollutantsAt(h, i),
+        };
+        const us = hourlySubIndices(h, i, "us");
+        const eu = hourlySubIndices(h, i, "eu");
+        if (us) p.usSubIndices = us;
+        if (eu) p.euSubIndices = eu;
+        return p;
+      })
     : [];
   return {
     latitude: r.latitude,
@@ -250,11 +289,18 @@ export async function getCurrentAir(lat: number, lon: number): Promise<AirRespon
 }
 
 /** Hourly series for history (`pastDays`) and/or forecast (`forecastDays`). */
-export async function getAirSeries(lat: number, lon: number, pastDays: number, forecastDays: number): Promise<AirSeries> {
+export async function getAirSeries(
+  lat: number,
+  lon: number,
+  pastDays: number,
+  forecastDays: number,
+  revalidate: number = REVALIDATE_SECONDS,
+): Promise<AirSeries> {
   const params = new URLSearchParams({
     latitude: String(coord(lat)),
     longitude: String(coord(lon)),
-    hourly: AQ_VARIABLES.join(","),
+    // Overall indices, concentrations and per-pollutant sub-indices on both scales.
+    hourly: [...AQ_VARIABLES, ...US_SUB_INDEX_VARIABLES, ...EU_SUB_INDEX_VARIABLES].join(","),
     past_days: String(Math.min(Math.max(0, Math.round(pastDays)), MAX_PAST_DAYS)),
     // forecast_days=1 means "today only"; it's the minimum Open-Meteo accepts.
     forecast_days: String(Math.min(Math.max(1, Math.round(forecastDays)), MAX_FORECAST_DAYS)),
@@ -263,6 +309,7 @@ export async function getAirSeries(lat: number, lon: number, pastDays: number, f
   const r = await fetchJson(`${AQ_BASE}?${params}`, {
     upstream: "Open-Meteo Air Quality",
     schema: AqResponseSchema,
+    revalidate,
   });
   return toSeries(r);
 }

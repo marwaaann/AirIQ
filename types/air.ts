@@ -50,6 +50,9 @@ export interface HourlyPoint {
   usAqi: number | null;
   euAqi: number | null;
   pollutants: PollutantValues;
+  /** Hourly source sub-indices (present on history/forecast series). */
+  usSubIndices?: SubIndexValues;
+  euSubIndices?: SubIndexValues;
 }
 
 export interface AirSeries {
