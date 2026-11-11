@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { createStoredValue, useStoredValue } from "@/lib/storage";
 import { SavedCitySchema, type SavedCity } from "@/types/city";

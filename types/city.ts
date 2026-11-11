@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../lib/zod.ts";
 
 /** A place the user has selected, favorited or located. Stored in localStorage. */
 export const SavedCitySchema = z.object({

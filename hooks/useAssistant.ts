@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { lenientArray } from "@/lib/alerts";
 import { MAX_MESSAGES, MAX_USER_CHARS, parseSse, type AssistantEvent, type ChatContext } from "@/lib/assistant/protocol";

@@ -7,6 +7,7 @@ import { createGeminiClient } from "@/lib/assistant/gemini";
 import { runAssistant, UpstreamModelError } from "@/lib/assistant/loop";
 import { AssistantRequestSchema, encodeSse, type AssistantEvent } from "@/lib/assistant/protocol";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
+import { getEnv } from "@/lib/env";
 import { runTool } from "@/lib/assistant/tools";
 
 export const runtime = "nodejs";
@@ -16,12 +17,12 @@ export const dynamic = "force-dynamic";
 const limiter = new RateLimiter(20, 10 * 60 * 1000);
 
 function apiKey(): string | null {
-  const k = process.env.GEMINI_API_KEY?.trim();
-  return k ? k : null;
+  return getEnv().geminiKey ?? null;
 }
 
 function models() {
-  return resolveModels({ GEMINI_MODEL: process.env.GEMINI_MODEL, GEMINI_FALLBACK_MODEL: process.env.GEMINI_FALLBACK_MODEL });
+  const env = getEnv();
+  return resolveModels({ GEMINI_MODEL: env.geminiModel, GEMINI_FALLBACK_MODEL: env.geminiFallbackModel });
 }
 
 function clientIp(req: NextRequest): string {
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   const m = models();
-  const baseUrl = process.env.GEMINI_BASE_URL?.trim() || undefined;
+  const baseUrl = getEnv().geminiBaseUrl;
   const primary = createGeminiClient({ apiKey: key, model: m.primary, baseUrl });
   const fallback = m.fallback ? createGeminiClient({ apiKey: key, model: m.fallback, baseUrl }) : null;
   const upstream = new AbortController();

@@ -2,7 +2,8 @@
 
 import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { categoryBands, niceYMax, useChartColors } from "@/components/charts/chart-kit";
+import { categoryBands } from "@/components/charts/category-bands";
+import { niceYMax, useChartColors } from "@/components/charts/chart-kit";
 import { getCategory, POLLUTANT_INFO, type PollutantKey } from "@/lib/aqi-categories";
 import { formatLocalDate } from "@/lib/format";
 import type { DayStat } from "@/lib/history-stats";

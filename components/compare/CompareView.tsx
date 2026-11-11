@@ -1,15 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { SERIES_DASH, useSeriesColors } from "@/components/charts/chart-kit";
 import { CitySearch } from "@/components/CitySearch";
 import { CompareCard } from "@/components/compare/CompareCard";
-import { CompareLineChart, dateLabel, type ChartRow, type ChartSeries } from "@/components/compare/CompareCharts";
-import { EmptyState, ErrorState } from "@/components/states";
+import { dateLabel, type ChartRow, type ChartSeries } from "@/components/compare/compare-chart-data";
+import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
+import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { compareCityFromSlug, useCompareCity, type CompareCityData, type CompareCityRef } from "@/hooks/useCompareCity";
@@ -24,6 +26,12 @@ import { dailyStats, toLocalHours } from "@/lib/history-stats";
 import { RANGES, type RangeParam } from "@/lib/share";
 import { makeCitySlug, parseCitySlug } from "@/lib/slug";
 import { datesEnding, localParts } from "@/lib/time";
+
+/** Recharts loads only when the charts render, so prefetching /compare stays light. */
+const CompareLineChart = dynamic(
+  () => import("@/components/compare/CompareCharts").then((m) => m.CompareLineChart).catch(offlineFallback("The comparison chart")),
+  { ssr: false, loading: () => <Skeleton className="h-72 rounded-xl" label="Loading chart" /> },
+);
 
 const METRICS = ["aqi", ...POLLUTANT_ORDER] as const;
 type Metric = (typeof METRICS)[number];
@@ -67,11 +75,22 @@ export function CompareView() {
     const qs = q.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs.replace(/%2C/g, ",")}` : ""}`);
   }, []);
+  // After a card or the search box disappears, keep keyboard focus in the city picker.
+  const chooseRef = useRef<HTMLElement>(null);
+  const focusPicker = () =>
+    requestAnimationFrame(() => {
+      const section = chooseRef.current;
+      (section?.querySelector<HTMLElement>("input[role=combobox]") ?? section)?.focus();
+    });
   const add = (slug: string) => {
     if (slugs.includes(slug) || slugs.length >= MAX_COMPARE) return;
     setSlugs([...slugs, slug]);
+    if (slugs.length + 1 >= MAX_COMPARE) focusPicker();
   };
-  const remove = (slug: string) => setSlugs(slugs.filter((s) => s !== slug));
+  const remove = (slug: string) => {
+    setSlugs(slugs.filter((s) => s !== slug));
+    focusPicker();
+  };
 
   // Fixed number of hook calls (one per slot); empty slots pass null.
   const s0 = useCompareCity(refs[0] ?? null, range);
@@ -146,7 +165,7 @@ export function CompareView() {
         <AqiScaleToggle />
       </header>
 
-      <section aria-label="Choose cities" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+      <section ref={chooseRef} tabIndex={-1} aria-label="Choose cities" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 outline-none">
         {slugs.length < MAX_COMPARE ? (
           <>
             <div className="max-w-md">

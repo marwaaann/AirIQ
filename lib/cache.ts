@@ -20,8 +20,18 @@ interface Entry<T> {
 }
 
 const MAX_ENTRIES = 500;
-const store = new Map<string, Entry<unknown>>();
-const inflight = new Map<string, Promise<unknown>>();
+/**
+ * Kept on globalThis so every server bundle shares one cache. Next bundles
+ * pages and route handlers separately, so a module-level Map would exist once
+ * per bundle: a city page's metadata and /api/air then fetched the same
+ * Open-Meteo URL twice (found by counting upstream requests in Phase 8).
+ */
+const shared = globalThis as typeof globalThis & {
+  __airiqCache?: { store: Map<string, Entry<unknown>>; inflight: Map<string, Promise<unknown>> };
+};
+shared.__airiqCache ??= { store: new Map(), inflight: new Map() };
+const store = shared.__airiqCache.store;
+const inflight = shared.__airiqCache.inflight;
 
 function prune(): void {
   if (store.size <= MAX_ENTRIES) return;

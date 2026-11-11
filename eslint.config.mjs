@@ -11,5 +11,16 @@ export default defineConfig([
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  {
+    // Import Zod through lib/zod.ts, which turns on jitless mode (no CSP eval probe).
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["lib/zod.ts", "lib/__tests__/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "zod", allowTypeImports: true, message: "Import { z } from \"@/lib/zod\" (or a relative lib/zod.ts) instead." }] },
+      ],
+    },
+  },
   globalIgnores([".next/**", "out/**", "build/**", "node_modules/**", "next-env.d.ts", "public/**"]),
 ]);

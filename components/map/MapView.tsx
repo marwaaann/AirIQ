@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 
 import type L from "leaflet";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 
 import { HeatLayer, type HeatPoint } from "@/components/map/HeatLayer";
@@ -43,7 +43,8 @@ const BASEMAP = {
 const LABELS_PANE = "airiq-labels";
 
 const TILE_ATTRIBUTION =
-  'Basemap &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Air data: <a href="https://open-meteo.com/">Open-Meteo</a> (CAMS)';
+  // Esri requires "Powered by Esri" plus the service's copyrightText (checked 2026-11-11).
+  'Powered by <a href="https://www.esri.com/">Esri</a> · Basemap: Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, and the GIS user community · Air data: <a href="https://open-meteo.com/">Open-Meteo</a> (CAMS) · <a href="/about">Sources</a>';
 
 const WORLD_BOUNDS: L.LatLngBoundsExpression = [
   [-85, -180],
@@ -97,11 +98,62 @@ function ViewportEvents({ onViewport }: { onViewport: (v: Viewport, center: L.La
   return null;
 }
 
+/** True when the user asked the OS for less motion (read once; Leaflet options are fixed at creation). */
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function FlyTo({ target }: { target: FlyTarget | null }) {
   const map = useMap();
   useEffect(() => {
-    if (target) map.flyTo([target.lat, target.lon], target.zoom, { duration: 1.2 });
+    if (!target) return;
+    // Jump instead of flying when reduced motion is requested.
+    if (prefersReducedMotion()) map.setView([target.lat, target.lon], target.zoom, { animate: false });
+    else map.flyTo([target.lat, target.lon], target.zoom, { duration: 1.2 });
   }, [map, target]);
+  return null;
+}
+
+/**
+ * Keyboard support for popups. Leaflet only handles Escape while the map
+ * container itself has focus, and a popup opened from a focused marker sits
+ * after every other marker in tab order. So: a popup opened from the keyboard
+ * receives focus; Escape closes it from anywhere in the map; focus then
+ * returns to the marker that opened it.
+ */
+function PopupKeyboard() {
+  const map = useMap();
+  useEffect(() => {
+    let source: HTMLElement | null = null;
+    const onOpen = (e: L.PopupEvent) => {
+      const icon = (e.popup as L.Popup & { _source?: { getElement?: () => HTMLElement | undefined } })._source?.getElement?.() ?? null;
+      source = icon;
+      if (icon && document.activeElement === icon) {
+        e.popup.getElement()?.querySelector<HTMLElement>("a[href], button, .leaflet-popup-close-button")?.focus();
+      }
+    };
+    const onClose = (e: L.PopupEvent) => {
+      const el = e.popup.getElement();
+      const hadFocus = !!el && el.contains(document.activeElement);
+      if (hadFocus && source?.isConnected) source.focus();
+      source = null;
+    };
+    const container = map.getContainer();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !source) return;
+      const back = source;
+      map.closePopup();
+      if (back.isConnected) back.focus();
+    };
+    map.on("popupopen", onOpen);
+    map.on("popupclose", onClose);
+    container.addEventListener("keydown", onKey);
+    return () => {
+      map.off("popupopen", onOpen);
+      map.off("popupclose", onClose);
+      container.removeEventListener("keydown", onKey);
+    };
+  }, [map]);
   return null;
 }
 
@@ -155,6 +207,8 @@ export default function MapView({
 }: MapViewProps) {
   const theme = useResolvedTheme();
   const tiles = BASEMAP[theme];
+  // MapView only renders in the browser (loaded with ssr: false), so this is safe on first render.
+  const [reduceMotion] = useState(prefersReducedMotion);
 
   const readings = useMemo(() => cells.map((c) => ({ cell: c, r: readCell(c, layer, scale) })), [cells, layer, scale]);
   const heatPoints: HeatPoint[] = useMemo(
@@ -179,8 +233,12 @@ export default function MapView({
       zoomControl={false}
       className="airiq-map h-full w-full"
       keyboard
+      zoomAnimation={!reduceMotion}
+      fadeAnimation={!reduceMotion}
+      markerZoomAnimation={!reduceMotion}
     >
       <LabelsPane />
+      <PopupKeyboard />
       <TileLayer
         key={theme}
         url={tiles.base}

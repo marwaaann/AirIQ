@@ -2,7 +2,7 @@
 
 import type L from "leaflet";
 import { useCallback, useEffect, useState } from "react";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { CitySearch } from "@/components/CitySearch";
 import { AlertIcon, RefreshIcon } from "@/components/icons";

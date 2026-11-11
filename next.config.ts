@@ -8,6 +8,34 @@ import type { NextConfig } from "next";
  */
 const BUILD_VERSION = process.env.AIRIQ_BUILD_VERSION?.trim() || Date.now().toString(36);
 
+const isDev = process.env.NODE_ENV !== "production";
+
+/**
+ * Content-Security-Policy. Tested in the browser against the map tiles, the
+ * service worker, next/og images, report export and the assistant stream.
+ * - 'unsafe-inline' scripts: Next inlines its RSC payload and our pre-paint
+ *   theme script; nonces would force every static page to render per request.
+ * - 'unsafe-inline' styles: React style props, Leaflet and Recharts set inline styles.
+ * - img: Esri basemap tiles; data:/blob: for report export (html-to-image, jsPDF).
+ * - connect: own API routes, plus BigDataCloud for "Use my location" place names.
+ * - 'unsafe-eval' in development only (React dev tooling).
+ */
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://server.arcgisonline.com",
+  "font-src 'self' data:",
+  `connect-src 'self' https://api.bigdatacloud.net${isDev ? " ws: wss:" : ""}`,
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -27,7 +55,13 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "geolocation=(self), camera=(), microphone=()" },
+          { key: "X-Frame-Options", value: "DENY" },
+          // Only geolocation (for "Use my location"), and only for this origin.
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(self), camera=(), microphone=(), payment=(), usb=()",
+          },
+          { key: "Content-Security-Policy", value: CSP },
         ],
       },
       {

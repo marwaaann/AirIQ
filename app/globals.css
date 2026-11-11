@@ -14,6 +14,7 @@
   --brand-contrast: #ffffff;
   --focus: #2563eb;
   --danger: #b42318;
+  --danger-contrast: #ffffff;
   /* Per-view accent, overridden inline by the AQI category of the current city. */
   --accent: var(--brand);
   color-scheme: light;
@@ -30,6 +31,7 @@
   --brand-contrast: #04201d;
   --focus: #60a5fa;
   --danger: #f97066;
+  --danger-contrast: #1a0503;
   color-scheme: dark;
 }
 
@@ -44,7 +46,10 @@
   --color-brand-contrast: var(--brand-contrast);
   --color-accent: var(--accent);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-danger-contrast: var(--danger-contrast);
+  /* System UI font: no download. (Geist sans was preloaded but never applied, because
+     `@theme inline` does not emit --font-sans as a variable; removed in Phase 8.) */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
@@ -55,7 +60,7 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -134,7 +139,7 @@ body:has([data-fullbleed]) > footer {
 /* ---------------------------------------------------------------------- */
 .airiq-map.leaflet-container {
   background: var(--surface-2);
-  font-family: var(--font-sans);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 .leaflet-container .airiq-divicon {
   background: transparent;
@@ -144,11 +149,11 @@ body:has([data-fullbleed]) > footer {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
+  height: 24px;
   padding: 0 7px 0 0;
   border-radius: 7px;
   overflow: hidden;
-  font: 700 12px/1 var(--font-mono);
+  font: 700 12px/1 var(--font-geist-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   box-shadow:
@@ -180,7 +185,8 @@ body:has([data-fullbleed]) > footer {
   height: 26px;
   border-radius: 9999px;
   border: 2px solid var(--surface);
-  font: 700 11px/1 var(--font-mono);
+  font: 700 12px/1 var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: -0.03em;
 }
 .leaflet-marker-icon:focus-visible {
   outline: 3px solid var(--focus);

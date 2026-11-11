@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { MoonIcon, SunIcon } from "@/components/icons";
 import { createStoredValue, useHydrated, useStoredValue } from "@/lib/storage";

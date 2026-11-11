@@ -3,16 +3,7 @@
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { SERIES_DASH, useChartColors, useSeriesColors } from "@/components/charts/chart-kit";
-import { formatLocalDate } from "@/lib/format";
-
-export interface ChartSeries {
-  key: string;
-  name: string;
-  /** Index into the fixed series palette (stable per URL slot, never by rank). */
-  slot: number;
-}
-
-export type ChartRow = Record<string, number | string | null> & { x: string | number; label: string };
+import type { ChartRow, ChartSeries } from "@/components/compare/compare-chart-data";
 
 const fmt = (v: number) => (v >= 100 ? String(Math.round(v)) : v.toFixed(1));
 
@@ -119,8 +110,4 @@ export function CompareLineChart({ rows, series, unit, summary, xLabel }: { rows
       </details>
     </figure>
   );
-}
-
-export function dateLabel(date: string, many: boolean): string {
-  return formatLocalDate(date, many ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric" });
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 
 import { CitySearch } from "@/components/CitySearch";
 import { AlertIcon, RefreshIcon } from "@/components/icons";
@@ -158,6 +158,7 @@ function RuleForm() {
 
   const field = "flex flex-col gap-1 text-sm";
   const control = "rounded-lg border border-border bg-surface px-2 py-1.5 text-sm";
+  const changeRef = useRef<HTMLButtonElement>(null);
 
   return (
     <section aria-labelledby={`${formId}-title`} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4">
@@ -173,7 +174,7 @@ function RuleForm() {
                 {city.name}
               </span>
               <span className="text-xs text-muted">{city.timezone}</span>
-              <button type="button" onClick={() => setCity(null)} className="text-xs font-medium text-brand underline underline-offset-2">
+              <button ref={changeRef} type="button" onClick={() => setCity(null)} className="text-xs font-medium text-brand underline underline-offset-2">
                 Change
               </button>
             </div>
@@ -187,6 +188,8 @@ function RuleForm() {
                     return;
                   }
                   setCityError(null);
+                  // The search box is replaced by the chosen city; keep keyboard focus there.
+                  requestAnimationFrame(() => changeRef.current?.focus());
                   setCity({ name: p.name, latitude: p.latitude, longitude: p.longitude, timezone: p.timezone, slug: makeCitySlug(p.name, p.latitude, p.longitude) });
                 }}
               />
@@ -338,7 +341,7 @@ function RulesList() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold">
-                      <Link href={`/city/${r.city.slug}`} className="underline-offset-4 hover:underline">
+                      <Link prefetch={false} href={`/city/${r.city.slug}`} className="underline-offset-4 hover:underline">
                         {r.city.name}
                       </Link>
                       : {metricLabel(r.metric, r.scale)} above {r.threshold}
@@ -465,7 +468,7 @@ function EventHistory() {
           {events.map((e) => (
             <li key={e.id} data-event-id={e.id} data-suppressed={e.suppressed} className="rounded-xl border border-border bg-surface p-3 text-sm">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
-                {!e.read ? <span className="rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">New</span> : null}
+                {!e.read ? <span className="rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-danger-contrast">New</span> : null}
                 {e.title}
                 {e.suppressed ? (
                   <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted">Suppressed (quiet hours)</span>
@@ -474,7 +477,7 @@ function EventHistory() {
               <p className="text-muted">{e.message}</p>
               <p className="text-xs text-muted">
                 <time dateTime={e.createdAt}>{timeAgo(e.createdAt, now)}</time> ·{" "}
-                <Link href={`/city/${e.citySlug}`} className="underline underline-offset-2">
+                <Link prefetch={false} href={`/city/${e.citySlug}`} className="underline underline-offset-2">
                   Open {e.cityName}
                 </Link>
               </p>

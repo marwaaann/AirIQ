@@ -8,7 +8,7 @@
  * Pure module (relative imports only) so it runs under `node --test`.
  */
 
-import { z } from "zod";
+import { z } from "../zod.ts";
 
 import { POLLUTANT_INFO, POLLUTANT_ORDER, getCategory, type PollutantKey } from "../aqi-categories.ts";
 import { dailyRanges } from "../forecast-insights.ts";

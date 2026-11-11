@@ -50,7 +50,7 @@ export function HomeDashboard() {
         {hydrated && activeCity ? (
           <p className="text-sm text-muted">
             Last viewed:{" "}
-            <Link href={`/city/${activeCity.slug}`} className="font-medium text-text underline underline-offset-4">
+            <Link prefetch={false} href={`/city/${activeCity.slug}`} className="font-medium text-text underline underline-offset-4">
               {activeCity.name}
             </Link>
           </p>

@@ -1,90 +1,208 @@
 # AirIQ: Real-Time Air Quality Intelligence
 
-Built for the **BREATHE BETTER** hackathon. AirIQ shows live AQI, pollution maps, history, forecasts, alerts and an AI assistant, using only authentic public air-quality data.
+Built for the **BREATHE BETTER** hackathon. AirIQ shows live air quality for any place on Earth: a real-time AQI dashboard, an interactive pollution map with heatmaps, history, forecasts, health advice, smart alerts and an AI assistant. It uses public data only (Open-Meteo / Copernicus CAMS, plus optional WAQI or OpenAQ ground stations), works with **no API keys**, and labels where every number comes from.
 
-> 🚧 Work in progress. Done so far: Phase 1 (scaffold, AQI engine, Open-Meteo data layer), Phase 2 (dashboard), Phase 3 (map, heatmap, stations), Phase 4 (history, forecast, trend model), Phase 5 (health advice, smart alerts) and Phase 6 (AI assistant).
+> General information, not medical advice. See [/about](app/about/page.tsx) in the app for sources, licences, methods and limitations.
 
-## Features so far
+## Screenshots
 
-- **Live dashboard** (`/`): search hero, "Use my location", favorites row and six popular cities, each with live AQI.
-- **City page** (`/city/[slug]`): semicircular AQI gauge with category color, pattern and label; plain-English verdict; "Updated X min ago" with 10-minute auto-refresh and a manual Refresh button; six pollutant cards with sub-index color, WHO guideline ratio, dominant-pollutant badge and a 24-hour sparkline; in-app EPA cross-check.
-- **US / European AQI toggle**, persisted and applied app-wide.
-- **Favorites** in localStorage (star on the city header).
-- **City search**: debounced WAI-ARIA combobox (arrow keys, Enter, Escape).
-- **Dark/light theme**, persisted and applied before first paint (no flash). Mobile-first layout, visible focus rings, skip link.
-- **Pollution map** (`/map`): live Open-Meteo grid (up to 64 points per view, one batched request) with value badges; an inverse-distance-weighted heatmap with adjustable opacity; layers for AQI, PM2.5, PM10, NO₂ and O₃; popups with all six pollutants and a link to the full dashboard; optional ground stations (WAQI or OpenAQ); fly-to search and "Use my location"; shareable URL (`?lat=&lon=&z=&layer=`); bottom-sheet controls on mobile.
-- **City tabs** (`?tab=overview|forecast|history|health|weather`). Chart code is lazy-loaded, so the Overview tab ships no chart library.
-- **History** (`?range=7|30|90`): daily mean/max chart with category bands (or any single pollutant with its WHO line), a calendar heatmap with patterns and a partial-day state, a weekday × hour heatmap, best/worst day, average, change vs the previous period, typical peak hour, and plain-English insights generated only when the numbers support them.
-- **Forecast**: the official 5-day hourly CAMS forecast with the AirIQ trend model and its 80% range for 48 h, a "now" marker, a daily min/mean/max strip, an agreement indicator, backtest numbers against two baselines, and the cleanest 3-hour windows in the next 48 h (with a warning when even those are unhealthy).
-- **Health advice** (`?tab=health`, plus a compact card on Overview): six profiles (General, Asthma/respiratory, Older adult, Children, Pregnancy, Athlete). Recommendations are grouped into outdoor activity (walking, exercise, commuting, children's play), indoor air and protection. Each shows its source, with a "why" line and the disclaimer "General information, not medical advice."
-- **Safe-time finder:** windows in the next 48 h of the official forecast that stay at or below your profile's threshold, for walking, exercise (optionally daylight only, from Open-Meteo sunrise/sunset) or airing out your home (cleanest hours).
-- **Smart alerts** (`/alerts`): rules per city for AQI, PM2.5, PM10, NO₂ or O₃ on the US or EU scale, on the current reading or the official forecast (next 6/12/24/48 h), with optional quiet hours. Includes a header bell with unread count, on-screen messages, opt-in browser notifications and an alert history. **Alerts only run while AirIQ is open in a browser tab.**
-- **AI assistant** (`/assistant`, plus an "Ask AirIQ" sheet on every city page): Gemini with tool calling. It answers only from data its tools fetch (current AQI, history, forecast, comparisons, health advice, safe windows). Every answer shows which tools ran and a "Data used" panel with their arguments and key values. Streaming, Stop, Clear chat, quick prompts, and the transcript kept in sessionStorage. Without `GEMINI_API_KEY` it shows "Assistant not configured" and everything else works.
-- **Compare** (`/compare?cities=slug1,slug2`): 2–4 cities added by search or from favorites. Side-by-side cards (AQI, category, main pollutant, six pollutant bars against the WHO guideline), a cleanest-to-most-polluted ranking, overlay charts of daily mean (7/30/90 days) and the 48 h official forecast with a pollutant selector, and a summary sentence built from the day-by-day numbers. Each city loads and fails on its own, with its own Retry.
-- **Weather tab** (`?tab=weather`): hourly PM2.5 aligned with Open-Meteo weather; Spearman correlations on daily values (wind, humidity, temperature, pressure, boundary layer height, daily rainfall) with n; a scatter plot with trend line; a 16-sector wind rose; dry vs rain days; insights only when |r| ≥ 0.2 over ≥ 14 days, always followed by "Correlation does not prove cause."
-- **Cigarette equivalent** on Overview and in the report: last 24 h and 7-day total (Berkeley Earth rule, 22 µg/m³ for 24 h ≈ 1 cigarette), labelled as an approximation, not a medical measurement.
-- **Shareable report** (`/city/[slug]/report`): print-friendly page with Download PDF / PNG, Print and Share. Share uses the Web Share API, or copies the link. Links carry city, tab, range, scale and profile. Dynamic Open Graph tags and a live `opengraph-image`.
-- **Installable PWA that works offline**: manifest with 192/512/maskable icons, an "Install app" button (only when the browser offers installation), and a service worker. Pages you have opened still load offline. Their data is shown from the last saved copy, always labelled "Offline: showing data from HH:MM, not live" in the city's time, with Retry. A "Back online" toast refreshes everything when the connection returns.
-- Every data view has a skeleton, an error state with Retry, and an empty state.
+All taken from the production build with live data on 11 Nov 2026.
 
-## Quick start
+| | |
+| --- | --- |
+| ![Home dashboard with live AQI for six cities](docs/screenshots/home.png) | ![Delhi city dashboard: gauge and pollutant cards](docs/screenshots/dashboard.png) |
+| **Home** (`/`) | **City dashboard** (`/city/delhi-28.652-77.231`) |
+| ![Map with CAMS heatmap and WAQI stations around Delhi](docs/screenshots/map-heatmap.png) | ![Forecast tab: official CAMS forecast and AirIQ trend model](docs/screenshots/forecast.png) |
+| **Map with heatmap and stations** (`/map`) | **Forecast** |
+| ![History calendar and weekday by hour heatmap](docs/screenshots/history-calendar.png) | ![Health advice for a profile](docs/screenshots/health.png) |
+| **History: calendar and hour-of-day heatmaps** | **Health advice** |
+| ![Weather correlations, scatter plot and wind rose](docs/screenshots/weather.png) | ![Compare Wellington, Kathmandu and Delhi](docs/screenshots/compare.png) |
+| **Weather analytics** | **Compare** (`/compare`) |
+| ![Assistant answering with tool calls and data used](docs/screenshots/assistant.png) | ![Alerts page with a rule and a fired alert](docs/screenshots/alerts.png) |
+| **AI assistant** (real Gemini answer) | **Smart alerts** (`/alerts`) |
+| ![Printable city report](docs/screenshots/report.png) | ![About page with sources and methods](docs/screenshots/about.png) |
+| **Shareable report** | **About, sources and methods** |
+| ![Home in dark mode](docs/screenshots/home-dark.png) | ![City dashboard in dark mode](docs/screenshots/dashboard-dark.png) |
+| **Home, dark** | **City dashboard, dark** |
+| ![Map in dark mode](docs/screenshots/map-heatmap-dark.png) | ![City dashboard on a phone](docs/screenshots/dashboard-mobile.png) |
+| **Map, dark** | **Mobile (390 px)** |
 
-```bash
-npm install
-npm run dev        # http://localhost:3000
+## Challenge items and where they live
+
+| Challenge item | Where | What it does |
+| --- | --- | --- |
+| **Real-time AQI dashboard** | `/`, `/city/[slug]` | Live US and European AQI (toggle), category verdict, six pollutant cards with WHO guideline ratios and 24 h sparklines, main pollutant, in-app EPA cross-check, 10-minute auto-refresh. |
+| **Interactive map** | `/map` | Live Open-Meteo grid (up to 64 points, one batched request) on Esri light/dark basemaps; layers for AQI, PM2.5, PM10, NO₂, O₃; popups with all pollutants; optional measured ground stations (WAQI or OpenAQ); fly-to search, "Use my location", shareable URL. |
+| **Historical tracker** | City → **History** (`?tab=history&range=7\|30\|90`) | Daily mean/max chart with category bands, calendar heatmap, weekday × hour heatmap, best/worst day, change vs previous period, and insights only when the data supports them. |
+| **AQI forecasting** | City → **Forecast** | Official 5-day CAMS forecast, plus the AirIQ trend model (damped Holt-Winters, 48 h) with an 80% range and a live backtest against two baselines; daily strip; cleanest 3-hour windows. |
+| **AI assistant** | `/assistant`, "Ask AirIQ" on city pages | Gemini with 7 tools (current AQI, history, forecast, compare, health advice, safe windows, city resolution). Every number is checked against the fetched data; "Data used" panel; asks when a city name is ambiguous. |
+| **Smart alerts** | `/alerts`, header bell | Rules per city on AQI or a pollutant (US or EU scale), on the current reading or the forecast, with quiet hours, hysteresis and opt-in notifications through the service worker. |
+| **Heatmaps and analytics** | Map, History, Weather, Compare | IDW heatmap on the map; calendar and hour-of-day heatmaps; weather correlations (Spearman, daily), scatter, wind rose, dry vs rain days; side-by-side comparison of 2–4 cities. |
+
+**Extras:**
+- **Health advice** for 6 profiles, from a sourced rules table (EPA, EEA, WHO), plus a **safe-time finder**.
+- **Cigarette equivalent** (Berkeley Earth rule of thumb).
+- **Shareable report**: PDF, PNG and print, with live Open Graph images.
+- **Installable PWA that works offline**, with stale data always labelled.
+- **Accessibility:** dark mode, keyboard support throughout, and WCAG AA colours with patterns.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  P["Open-Meteo (CAMS air quality, weather, geocoding)<br/>WAQI / OpenAQ (optional)<br/>Gemini (optional)"]
+  S["Route handlers /api/*<br/>Zod validation · TTL cache · no invented values"]
+  W["Service worker<br/>network-first, labelled offline copies"]
+  C["SWR data layer<br/>one request per key · stale flag"]
+  U["UI: dashboard · map · history · forecast<br/>health · weather · compare · report"]
+  A["Alert engine<br/>(skips stale data)"]
+  G["/api/assistant<br/>tool loop + grounding guard"]
+  P --> S --> W --> C --> U
+  C --> A
+  U -- "POST, never cached" --> G --> P
 ```
 
-No API keys are required. Optional keys go in `.env.local` (template: `.env.example`):
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). It covers data flow and caching, AQI logic, the trend model, the alert engine, the service worker, the assistant, and the security headers.
 
-| Variable | Used for | Without it |
-| --- | --- | --- |
-| `WAQI_TOKEN` | Ground-station markers on the map (preferred source) | Falls back to OpenAQ, or no stations |
-| `OPENAQ_API_KEY` | Ground-station markers on the map (fallback source) | No stations ("Ground stations: not configured") |
-| `GEMINI_API_KEY` | AI assistant | Assistant shows "Assistant not configured" |
-| `GEMINI_MODEL` | Override the Gemini model | `gemini-3.6-flash` |
+## Tech stack
 
-Keys are read only inside route handlers and never reach the browser.
+- **Next.js 16.4** (App Router, Turbopack) with **React 19** and **TypeScript** (strict).
+- **Tailwind CSS 4**.
+- **SWR** for client data, **Zod 4** for every boundary (upstream responses, query strings, localStorage, environment).
+- **Recharts** (charts, lazy-loaded), **Leaflet** + **react-leaflet** (map, `/map` only), a custom canvas IDW heatmap.
+- **@google/genai** for the assistant.
+- **html-to-image** + **jsPDF** for report export (loaded on demand).
+- Tests: **Node's built-in test runner** with native type stripping, plus **axe-core** for accessibility audits.
+- A hand-written service worker (no Workbox).
 
-| Script | What it does |
-| --- | --- |
-| `npm run dev` | Development server |
-| `npm run build` / `npm start` | Production build / server |
-| `npm run typecheck` | `tsc --noEmit` (strict) |
-| `npm run lint` | ESLint (Next core-web-vitals + TypeScript) |
-| `npm test` | AQI unit tests (Node's built-in test runner) |
-| `npm run check` | typecheck + lint + tests |
+## Project structure
 
-Requires Node.js ≥ 22.18 (native TypeScript type-stripping is used for tests).
+```
+app/                  pages, route handlers (api/*), error/not-found boundaries, manifest, OG image, /about
+components/           UI: dashboard, gauge, cards, search, tabs
+  map/                MapScreen → MapClient (client-only) → MapView (react-leaflet), HeatLayer, markers, popups
+  forecast/ history/ weather/ health/ compare/ report/ alerts/ assistant/ pwa/ charts/
+hooks/                data and state hooks (useCity, useAlertEngine, useAqiScale, useProfile, useOnline, …)
+lib/                  pure logic and server data layer
+  aqi.ts, aqi-categories.ts     AQI maths, categories, colours, WHO values
+  openmeteo.ts, waqi.ts, openaq.ts, stations.ts, http.ts, cache.ts, schemas.ts, env.ts, zod.ts
+  forecast-model.ts, history-stats.ts, weather-stats.ts, alerts.ts, health-rules.ts, stale.ts, …
+  assistant/          tool loop, tools, Gemini client, grounding guard, system prompt, rate limit
+  __tests__/          unit tests (node --test)
+public/sw.js, sw-core.js   service worker (decisions in the pure, tested sw-core.js)
+scripts/a11y-audit.mjs     axe-core audit of every route, both themes, desktop and mobile
+docs/                 ARCHITECTURE.md, DEMO.md, PHASE8-REPORT.md, screenshots/
+instrumentation.ts    validates the environment at startup (no values logged)
+.github/workflows/ci.yml   install, typecheck, lint, test, build on push and pull request
+```
 
-## API routes (so far)
+## Setup
+
+Requires **Node.js ≥ 22.18**.
+
+```bash
+git clone <this repository> airiq && cd airiq
+npm ci
+cp .env.example .env.local      # optional: add keys (all features work without them except stations and the assistant)
+npm run build && npm start      # production server on http://localhost:3000 (service worker and offline mode)
+```
+
+For development, use `npm run dev` instead of the last line. The service worker is not registered in dev.
+
+## Environment variables
+
+All variables are **optional**. They are validated once at startup in `lib/env.ts` (logged as on/off, never with values). A missing or invalid value never crashes the app: the feature switches off and the UI says why. Keys are read only on the server.
+
+| Variable | Required? | What it unlocks | Without it |
+| --- | --- | --- | --- |
+| `WAQI_TOKEN` | Optional | Measured ground-station markers on the map (preferred source). [Free token](https://aqicn.org/data-platform/token/) | Falls back to OpenAQ, or no stations ("Ground stations: not configured") |
+| `OPENAQ_API_KEY` | Optional | Ground stations from OpenAQ (backup source). [Free key](https://explore.openaq.org/register) | No OpenAQ fallback |
+| `GEMINI_API_KEY` | Optional | The AI assistant. [Free key](https://aistudio.google.com/apikey) | "Assistant not configured"; everything else works |
+| `GEMINI_MODEL` | Optional | Override the model | `gemini-3.6-flash` |
+| `GEMINI_FALLBACK_MODEL` | Optional | Backup model used once on a quota error; `off` disables it | `gemini-3.5-flash-lite` |
+| `GEMINI_BASE_URL` | Optional, testing only | Send Gemini calls to a mock server | Google's API |
+| `SITE_URL` | Optional (set in production) | Absolute base for Open Graph image links | `http://localhost:3000` |
+| `AIRIQ_BUILD_VERSION` | Optional, build time | Service-worker cache version | The build timestamp |
+
+`/about` shows which optional features are on for the running server.
+
+## API routes
 
 | Route | Source | Notes |
 | --- | --- | --- |
-| `GET /api/geocode?q=&count=&lang=` | Open-Meteo Geocoding | City search, cached 24 h |
-| `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, source sub-indices, in-app EPA cross-check, cached 10 min |
-| `GET /api/grid?south=&west=&north=&east=&zoom=` | Open-Meteo Air Quality (batched multi-location) | ≤64 snapped grid points, current AQI + pollutants + per-pollutant sub-indices, cached 10 min. 400 on inverted or oversized bounds |
-| `GET /api/history?lat=&lon=&days=7\|30\|90` | Open-Meteo Air Quality (`past_days`) | Hourly AQI (both scales), 6 pollutants and per-pollutant sub-indices; fetches 2× the range (max 92 days) for period-over-period; future hours dropped; cached 30 min |
-| `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality (`past_days=28`, `forecast_days=5`) + Open-Meteo Weather (`daily=sunrise,sunset`) | Official forecast from the current hour, AirIQ trend model, backtest and intervals, and 3 days of sunrise/sunset (`sun: null` if that call fails); cached 15 min |
-| `GET /api/weather?lat=&lon=&days=7\|30\|90` | Open-Meteo Weather (`past_days`) | Hourly temperature, humidity, wind speed/direction, surface pressure, precipitation, boundary layer height up to the current hour; exact UTC times + IANA zone; cached 30 min |
-| `GET /city/[slug]/opengraph-image` | Open-Meteo Air Quality | 1200×630 PNG with live US AQI and category color; neutral name-only card if live data fails |
-| `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 `/locations` + `/locations/{id}/latest` | `{ source: "none", stations: [] }` when no key is set; cached 10 min |
-| `GET /api/assistant` | n/a | `{ configured, model, fallbackModel }` (never the key) |
-| `POST /api/assistant` | Google Gemini (`@google/genai`) + AirIQ tools | `{ messages ≤20, context? }`, user messages ≤2,000 chars → `text/event-stream` with `safety`, `text`, `tool_start`, `tool_result`, `retry`, `model_fallback`, `notice`, `done`, `error` events; 503 without a key; 429 + `Retry-After` when rate-limited; 400 on invalid input |
-| (client) BigDataCloud reverse geocode | api.bigdatacloud.net | Labels "Use my location" and map points. No key, called from the browser |
-| (client) Esri World Gray Canvas tiles | server.arcgisonline.com | Light/dark basemap and labels. No key |
+| `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, sub-indices, EPA cross-check. Cached 10 min |
+| `GET /api/history?lat=&lon=&days=7\|30\|90` | Open-Meteo Air Quality (`past_days`) | Hourly AQI (both scales) and 6 pollutants; fetches 2× the range (max 92 days) for period comparison. Cached 30 min |
+| `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality + Weather (sunrise/sunset) | Official forecast, AirIQ trend model, backtest, 80% range. Cached 15 min |
+| `GET /api/weather?lat=&lon=&days=7\|30\|90` | Open-Meteo Weather | Hourly temperature, humidity, wind, pressure, precipitation, boundary layer height. Cached 30 min |
+| `GET /api/grid?south=&west=&north=&east=&zoom=` | Open-Meteo Air Quality (one batched multi-location call) | ≤ 64 snapped grid points for the map. Cached 10 min; 400 on inverted or oversized bounds |
+| `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 | `{ source: "none" }` when no key is set. Cached 10 min |
+| `GET /api/geocode?q=&count=&lang=` | Open-Meteo Geocoding | City search. Cached 24 h |
+| `GET /api/assistant` | n/a | `{ configured, model, fallbackModel }`, never the key |
+| `POST /api/assistant` | Google Gemini + AirIQ tools | `{ messages, context? }` → `text/event-stream`. 503 without a key, 429 + `Retry-After` when rate-limited, 400 on bad input |
+| `GET /city/[slug]/opengraph-image` | Open-Meteo Air Quality | 1200×630 PNG with the live AQI; neutral card if data fails |
 
-All upstream calls are validated with Zod and normalized to the types in `types/air.ts`. Failures return `{ error, detail }` with a 4xx/5xx status. The app never substitutes made-up values.
+Everything upstream is validated with Zod. Failures return `{ error, detail }` with a 4xx/5xx status, and nothing is ever filled in. The browser also calls **Esri** basemap tiles and, for "Use my location" only, **BigDataCloud**'s free client-side reverse geocoder.
 
-## Project layout
+## Testing
 
-```
-app/            pages + route handlers (api/*)
-components/     UI (AqiGauge, PollutantCard, CitySearch, CityDashboard, …)
-components/map/ MapScreen → MapClient (client-only) → MapView (react-leaflet), HeatLayer, MapControls, markers, popups
-hooks/          useCity (active city + useAir), useFavorites, useAqiScale, useGeolocation, …
-lib/            aqi.ts, aqi-categories.ts, openmeteo.ts, waqi.ts, openaq.ts, stations.ts, grid.ts, idw.ts, color-ramp.ts, schemas.ts, cache.ts, http.ts, slug.ts, storage.ts, …
-types/          internal data model + API response types
-```
+| Command | What it checks |
+| --- | --- |
+| `npm run typecheck` | `tsc --noEmit`, strict |
+| `npm run lint` | ESLint (Next core-web-vitals + TypeScript), plus a rule that Zod is imported only through `lib/zod.ts` |
+| `npm test` | 270 unit tests (`node --test`) |
+| `npm run check` | All three |
+| `node scripts/a11y-audit.mjs http://localhost:3000` | axe-core (WCAG 2.2 AA + best practice) on 12 routes × light/dark × desktop/mobile against a running production server; exits 1 on any serious or critical issue |
+
+The unit tests cover:
+- the AQI maths (EPA and EEA), category colour contrast, and the trend model and its backtest;
+- history, weather and compare statistics, and health rules (every combination);
+- alert evaluation, hysteresis and quiet hours, and skipping stale data;
+- service-worker strategy logic, stale-header parsing and time zones;
+- shared-link settings, storage validation, environment validation;
+- the assistant's tool loop, grounding guard and fallback model.
+
+Each phase was also verified in headless Chrome against the production build with live data. The Phase 8 run is recorded in [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md).
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs install, typecheck, lint, tests and the production build on every push and pull request. No keys are needed.
+
+## Deployment
+
+1. **Vercel** (simplest): import the repository, then set `SITE_URL` and any optional keys in Project → Environment Variables. Builds use `npm run build`. Vercel compresses API responses automatically.
+2. **Any Node host:** `npm ci && npm run build && npm start` (port 3000, or `-p`). Put a reverse proxy (nginx, Caddy) in front for HTTPS and gzip/brotli. `next start` compresses pages and static files but **not** route-handler JSON (see Decisions).
+3. Set `SITE_URL` to the public URL so Open Graph images are absolute. Optionally set `AIRIQ_BUILD_VERSION` (e.g. the commit SHA) to name the service-worker caches.
+4. **HTTPS is required** for the service worker, notifications, geolocation and install (localhost is exempt).
+
+Before a public or commercial launch:
+- Open-Meteo's free API is **non-commercial only**.
+- WAQI data may not be used in paid services.
+- Review Esri's basemap terms.
+- The assistant's rate limiter is in memory (per instance). Use a shared store if you run several instances.
+
+## Data sources and attribution
+
+AirIQ shows the required credits in the footer of every page, on the map, and in full on `/about`. Requirements were checked on the providers' own pages on 11 Nov 2026:
+
+- **Open-Meteo**: data under CC BY 4.0, with a link to Open-Meteo where its data appear ([licence](https://open-meteo.com/en/licence)). The free API is for non-commercial use, under 10,000 calls a day ([terms](https://open-meteo.com/en/terms)). Geocoding is based on GeoNames ([geocoding docs](https://open-meteo.com/en/docs/geocoding-api)).
+- **Copernicus Atmosphere Monitoring Service**: "Generated using / Contains modified Copernicus Atmosphere Monitoring Service information [year]", with the CAMS European ensemble partners credited ([CAMS licence](https://apps.ecmwf.int/datasets/licences/cams), [Open-Meteo air quality docs](https://open-meteo.com/en/docs/air-quality-api)).
+- **WAQI**: attribution to the World Air Quality Index Project and the originating EPA is mandatory. No sale, no paid apps, no redistribution as cached or archived data ([WAQI API terms](https://aqicn.org/api/)).
+- **OpenAQ**: attribution to OpenAQ, and to original providers where they require it ([OpenAQ terms](https://docs.openaq.org/about/terms)).
+- **Esri**: "Powered by Esri" plus the service's data credits ("Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community", read from the tile service's `copyrightText`) ([Esri attribution requirements](https://developers.arcgis.com/documentation/esri-and-data-attribution/)).
+- **BigDataCloud**: the free client-side reverse geocoder may only be called from the browser with the device's current location ([BigDataCloud terms](https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api)).
+- **Berkeley Earth**: 22 µg/m³ of PM2.5 for a day ≈ 1 cigarette, a rough illustrative comparison ([Air Pollution and Cigarette Equivalence](https://berkeleyearth.org/air-pollution-and-cigarette-equivalence/)).
+
+## Limitations
+
+- **Grid data is modelled, not measured.** CAMS cells are about 11 km (Europe) to 45 km (elsewhere) and smooth out local hot spots. The heatmap is interpolated between grid points. Ground stations are optional and vary widely in coverage.
+- **Alerts only run while an AirIQ tab is open.** There is no push server.
+- **Offline data is the last saved copy**, always labelled with its time, and alerts never run on it. A view never opened online is not available offline.
+- **History is limited** to about 92 days (Open-Meteo), and the weather archive can be shorter.
+- **The trend model is a simple statistical model.** It is backtested on only 48 h each time and sometimes loses to a naive baseline (the UI says so).
+- **The assistant can be wrong.** Numbers are checked against tool data, but wording is not. The free Gemini tier allows about 20 requests per day per model.
+- **Not verified:**
+  - a click on a real OS notification;
+  - the browser's install dialog and the installed app window;
+  - real phones and tablets (only emulated mobile viewports);
+  - behaviour at production scale (multi-instance rate limiting, upstream quotas under load).
 
 ## AirIQ trend model
 
@@ -123,6 +241,43 @@ These change every hour with new data. The UI always shows the current numbers a
 
 ## Decisions
 
+### Phase 8: verification, polish, submission readiness
+
+- **AQI badge text meets WCAG AA in both themes.** White text on EPA "Unhealthy" red (`#ff0000`, 4.0:1) and EEA "Poor" (`#ff5050`, 3.2:1) failed AA. Both now use near-black `#1a0000` (5.0:1 and 6.2:1). The official background colours and the patterns are unchanged. The dark-theme danger badges (alert count, "New") had white on `#f97066` (2.8:1) and now use a `--danger-contrast` token. A unit test checks every category pair and the theme tokens against 4.5:1, so this can't regress.
+- **Map markers and WCAG 2.5.8 (target size).**
+  - Grid badges are now 24 px tall.
+  - Overlapping station markers in dense cities remain an axe finding at desktop width. WCAG's Understanding document puts map pins under the **Essential** exception: their position is the information.
+  - The alternatives it asks for exist. Zooming in separates the pins, every place is reachable through search and its city page, and every marker is keyboard-focusable.
+- **Keyboard fixes found in the keyboard pass:**
+  - The skip link now moves focus into `<main>`.
+  - Picking a city in the alert form focuses "Change".
+  - Adding or removing a city in Compare keeps focus in the city picker.
+  - A map popup opened from the keyboard takes focus. Escape closes it from anywhere in the map and returns focus to its marker (Leaflet handles Escape only when the map container itself is focused).
+- **Reduced motion:** the CSS already disabled animations and transitions. Leaflet's JavaScript animations (fly-to, zoom, fade) now also switch off when `prefers-reduced-motion: reduce` is set. Charts never animate.
+- **Charts stay off the Overview.** Next prefetched `/compare` (header link) and the report (city page), whose views imported Recharts statically, so the 110 KB chart chunk loaded on every page. The compare charts and the report chart are now lazy, and `categoryBands` moved out of `chart-kit` so colour helpers don't pull Recharts in. Measured: Overview, home, alerts, assistant and about load no chart library, and Leaflet loads only on `/map`.
+- **No prefetch for dynamic city links.** Prefetching a city page renders it on the server, which spent upstream calls (geocoding, live AQI) for pages the user may never open. With the six home cards, a home view made 15 Open-Meteo requests; with `prefetch={false}` it makes 6.
+- **One server cache for pages and routes.** The in-process cache lived in module scope, and Next bundles pages and route handlers separately. A city page's metadata and `/api/air` therefore fetched the identical URL twice. The cache now lives on `globalThis`. Measured on a cold server: home 6 Open-Meteo requests, a city page 3 (geocoding, current, 14-day history), the map 1 grid call plus 1 station call.
+- **No gzip for API JSON under `next start`.**
+  - Gzip in `jsonOk` was tried and reverted. Unit tests passed, but in the browser every API call failed: `next start` strips the `Content-Encoding` header from route-handler responses while still sending the compressed bytes.
+  - Compression of API JSON is left to the host (Vercel and common reverse proxies do it). Lighthouse's "text compression" finding on the city page (the 136 KB 7-day history) is therefore a `next start` artefact.
+- **System UI font.** Geist sans was preloaded on every page but never applied: `@theme inline` inlines `--font-sans` into utilities rather than defining it as a variable, so the stylesheet's `var(--font-sans)` was invalid. The unused font download was removed, and the system stack the app has always rendered with is now explicit. The map badges had the same problem with `--font-mono` and now use Geist Mono as intended.
+- **Error states.**
+  - `app/error.tsx` offers "Try again" (Next 16's `retry`) and "Go to the dashboard", and shows only the error digest.
+  - `app/global-error.tsx` carries its own minimal styles.
+  - `app/not-found.tsx` explains the city-link format and offers search.
+  - An invalid city slug returns a **real 404**. A `loading.tsx` for city pages was tried and removed: with a loading boundary Next streams the page and fixes the status at 200 before `notFound()` runs (a "soft 404"). The other routes are static, so they need no loading file.
+- **Environment in one place** (`lib/env.ts`, Zod). Every variable is optional. Empty values count as unset. Invalid URLs or model ids are ignored with a warning naming only the variable. `instrumentation.ts` logs the on/off summary at startup, and `/about` shows it. A unit test checks that no secret value can appear in warnings, feature details or the log line.
+- **Security headers:** `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, and a Permissions-Policy allowing only geolocation for this origin. An **enforced** CSP (not report-only) was tested in the browser with the map tiles, the service worker, offline mode, report export and the assistant stream, and no violations were reported.
+  - `'unsafe-inline'` scripts are needed for Next's inline RSC payload and the theme script; nonces would make every static page dynamic.
+  - Zod 4 probes `new Function` once (caught, but reported as a CSP violation, which Lighthouse flagged). All Zod imports now go through `lib/zod.ts`, which sets `jitless`, and a lint rule enforces it.
+- **`npm audit`: 0 vulnerabilities.** It started with 8 moderate findings, all one minimatch ReDoS advisory reached only through the dev-only lint toolchain (`eslint-config-next` → `typescript-eslint` → `minimatch@10.2.6`). npm's suggested fix was a downgrade to `eslint-config-next@15`. Instead, an `overrides` entry pins that one path to `minimatch@^11.0.7`. Lint still parses and reports TypeScript correctly.
+- **BigDataCloud is used only for "Use my location".** Its free client-side endpoint may be called only with the device's current location. Map points therefore keep their "Map point (lat, lon)" label instead of being reverse-geocoded.
+- **Attribution:** the footer on every page and the map attribution now carry the required credits ("Powered by Esri" with the tile service's copyright text, Open-Meteo CC BY 4.0, Copernicus CAMS). `/about` lists every provider's terms with links. The footer clears the floating "Ask AirIQ" button.
+- **Lighthouse (mobile, final build):** Accessibility, Best Practices and SEO are 100 on home and the city page. Performance is home 85–91, city 81–82 and map 56. The city page misses 90 because its largest element needs the live reading, which is fetched in the browser after the JS (that is what keeps offline data labelled). Real unthrottled LCP was 0.35–0.40 s; Lighthouse's slow-4G simulation gives 4.6 s. Preloading the request was tried and reverted (Chrome fetched it twice with `cache: "no-store"`). Full numbers: [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md).
+- **Removed:** the unused `components/ComingSoon.tsx`. Every runtime dependency is in use; no stray `console.log` (only `console.error` for server errors and the startup summary).
+
+### Phases 1–4: data, dashboard, map, history and forecast
+
 - **Next.js 16.4.5** instead of the 15.x that `create-next-app@15` installs, because 15.x has open security advisories.
 - **Tests use Node's built-in runner** (`node --test` with native type stripping) instead of Vitest. `npm install vitest` repeatedly crashed with an npm 10.9 internal error (`edgesOut`), and Vitest 4/5 don't officially support Node 23. The tested modules (`lib/aqi.ts`, `lib/aqi-categories.ts`) use relative `.ts` imports so they run without a bundler.
 - **EPA breakpoints: May 2024 revision** (PM2.5 "Good" ≤ 9.0 µg/m³). The 2012 PM2.5 table is kept as an option for reference.
@@ -148,7 +303,7 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Ground stations** report a US AQI only. WAQI's map endpoint gives the network's AQI but not the dominant pollutant or per-pollutant values, so the popup says so. OpenAQ gives the latest hourly PM2.5, from which AirIQ computes an instantaneous US AQI, labeled as such. Stations without a numeric, recent (≤6 h) value are dropped. OpenAQ is capped at 20 stations per view to respect its free rate limit. Stations show on the AQI and PM2.5 layers only.
 - **Station path testing:** no WAQI or OpenAQ key was available. The station UI was verified against a mocked `/api/stations` response in the browser, and the server path was tested live with invalid keys (WAQI "Invalid key" → OpenAQ 401 → clean 502, map still works). The successful live parsing of WAQI/OpenAQ responses has **not** been verified against real data.
 - **Stale responses never win.** Map requests are debounced 500 ms. Each new request aborts the previous one, and a sequence check ignores any response that is not the latest.
-- **Unnamed map points** link to `/city/map-point-<lat>-<lon>`. Like "Use my location", the page labels itself via BigDataCloud and swaps to a named URL (e.g. `/city/gurugram-28.5-77`).
+- **Unnamed map points** link to `/city/map-point-<lat>-<lon>` and are labelled "Map point (lat, lon)". **Changed in Phase 8:** they used to be reverse-geocoded through BigDataCloud like "Use my location", but its free endpoint may only be used with the device's own location.
 - **`turbopack.root` is pinned** to the project folder in `next.config.ts`. A stray `package-lock.json` in a parent folder (here, the user's home directory) otherwise made the dev server watch far more than the project, and it fell into a full-reload loop while a browser was open.
 - **Local time (fix to Phase 1's handling).** Open-Meteo's `timezone=auto` labels every hour with ONE fixed offset (the zone's current one), not true wall-clock time. This was verified live: London returned 24 hourly stamps on 2026-10-25, the day BST ended. Phase 1's UTC conversion (label − `utc_offset_seconds`) is therefore exact, but bucketing by Open-Meteo's local labels would put London's summer days an hour off. AirIQ now derives the true local date, hour and weekday from UTC with the IANA zone (`lib/time.ts`), for daily buckets, hour-of-day patterns, "today" and chart labels. The browser's own time zone is never used.
 - **European PM2.5 index** (`euPm25Index` in `lib/aqi.ts`) uses the HOURLY concentration with the 2024 EEA bands (0–5–15–50–90–140 µg/m³ → 0–20–40–60–80–100), continuing above 140 µg/m³ with the last band's slope. This was reverse-checked against 744 hourly Open-Meteo values each for Delhi and London: exact below 140 µg/m³, within ±1 above.
@@ -231,7 +386,7 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Share links** always write `tab`, `range`, `scale` and `profile` explicitly, so they do not depend on the recipient's saved settings. **Changed in Phase 7b:** opening one applies its scale and profile to that view only and never writes them to saved settings (see Phase 7b).
 - **Report exports** run in the browser: html-to-image renders the report node, which includes the data timestamp and sources, to PNG at 2× scale, and jsPDF places it on A4 pages, split across pages if needed. Failures show a visible error with the "Print → Save as PDF" alternative (tested by blocking canvas export). Print CSS hides the app chrome and controls and switches to light ink.
 - **Open Graph:** `generateMetadata` puts the live US AQI and category in the description. The `opengraph-image` route draws the city name, live AQI, category and category color. If the live call fails, takes over 4 s, or the place is unnamed, it draws a neutral card with the name only and no number. Set `SITE_URL` in production so image URLs are absolute (default `http://localhost:3000`).
-- **PWA:** manifest plus generated PNG icons. There is deliberately **no service worker or offline cache**: an offline copy of air-quality data would be stale and could look current. The app is installable, but needs a connection.
+- **PWA (superseded in Phase 7b, which added a service worker with labelled offline data):** manifest plus generated PNG icons. There is deliberately **no service worker or offline cache**: an offline copy of air-quality data would be stale and could look current. The app is installable, but needs a connection.
 - **The Phase 7 instructions were cut off** mid-sentence at the Open Graph item ("…never a"), so the PWA details and the final steps were not received. The PWA work follows the original brief (manifest), and verification follows earlier phases.
 
 ### Phase 7b: offline PWA, service-worker notifications, shared-link behaviour
@@ -248,8 +403,7 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Offline behaviour:** the header, navigation and the US/EU toggle work offline. A "You're offline" pill stays visible. Lazy views whose code was never downloaded (e.g. the History tab if never opened) say "isn't available offline yet" instead of failing. The assistant says "The assistant needs a connection." and disables input. When the connection returns, a "Back online. Refreshing data…" toast appears, every SWR key is revalidated and the map reloads. In the browser test the labels disappeared once fresh data replaced them.
 - **Notifications through the worker:** path chosen by `chooseNotifyPath` (tested): service worker → page `Notification` → in-app. Permission is still requested only from a click. `notificationclick` focuses an existing AirIQ window and navigates it to the alert's city, or opens a new window. Only same-origin paths from the notification's data are used. **What remains:** alerts still need an open tab (no push), and quiet hours, cross-tab de-duplication and the in-app history are unchanged.
 - **Install:** `app/manifest.ts` with `display: standalone`, theme `#0f766e`, background `#0a0e14` and PNG icons at 192, 512 and 512 maskable, generated by `/pwa-icon/[size]` (maskable content kept inside the safe zone). The "Install app" button appears only after `beforeinstallprompt` and hides after `appinstalled`.
-- **Validation result:** Chrome's own installability check (`Page.getInstallabilityErrors` over the DevTools protocol, production build) returned **no errors**, and `Page.getAppManifest` reported **no parse errors**. Each icon was fetched and decoded: 192×192, 512×512, 512×512 maskable, all `image/png`, matching their declared sizes. Headless Chrome fired a real `beforeinstallprompt`, so the button appeared. Lighthouse was not used: it is not installed here, and Lighthouse 12+ no longer has a PWA audit.
+- **Validation result:** Chrome's own installability check (`Page.getInstallabilityErrors` over the DevTools protocol, production build) returned **no errors**, and `Page.getAppManifest` reported **no parse errors**. Each icon was fetched and decoded: 192×192, 512×512, 512×512 maskable, all `image/png`, matching their declared sizes. Headless Chrome fired a real `beforeinstallprompt`, so the button appeared. Lighthouse was not used in Phase 7b. **Phase 8:** Lighthouse 11 (the last version with a PWA category) scored the PWA category 100%: installable manifest, splash screen, themed omnibox, maskable icon, content width and viewport all pass.
 - **Browser verification method:** headless Chrome against `next build && next start`. "Offline" meant stopping the server **and** turning on DevTools offline emulation (so `navigator.onLine` is false), then restarting the server for "back online". The expected time in the label was computed from the stored `X-AirIQ-Cached-At` converted to Asia/Kolkata, and matched (e.g. "from 00:41").
 - **Known console entry:** opening a city URL offline whose exact query (e.g. `?tab=history`) was never opened online serves that city's page saved for another tab. React logs a recoverable hydration mismatch (#418) and re-renders the tab on the client, and the page works.
 - **Not tested:** a click on a real OS notification (headless Chrome shows none). The test recorded that `showNotification` was called with the city URL, and the click handler's URL rule is unit-tested. Also not tested: the real install dialog and installed-app window (the button was driven by the browser's `beforeinstallprompt` and a synthetic `appinstalled`), and behaviour on Android or iOS devices.
-

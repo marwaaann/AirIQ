@@ -85,7 +85,8 @@ export const US_CATEGORIES: readonly AqiCategory<UsCategoryKey>[] = [
     min: 151,
     max: 200,
     color: "#ff0000",
-    textColor: "#ffffff",
+    // White on #ff0000 is 4.0:1 (fails WCAG AA); near-black is 5.0:1.
+    textColor: "#1a0000",
     verdict: "Unhealthy air. Limit outdoor activity.",
     health: "Some members of the general public may experience health effects; sensitive groups may experience more serious effects.",
     sensitive: "Sensitive groups should avoid prolonged or heavy exertion; everyone else should reduce it.",
@@ -167,7 +168,8 @@ export const EU_CATEGORIES: readonly AqiCategory<EuCategoryKey>[] = [
     min: 60,
     max: 80,
     color: "#ff5050",
-    textColor: "#ffffff",
+    // White on #ff5050 is 3.2:1 (fails WCAG AA); near-black is 6.2:1.
+    textColor: "#1a0000",
     verdict: "Poor air. Reduce intense outdoor activity.",
     health: "Consider reducing intense activities outdoors if you experience symptoms such as sore eyes, a cough or sore throat.",
     sensitive: "Consider reducing physical activities, particularly outdoors, especially if you experience symptoms.",

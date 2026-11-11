@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
@@ -8,7 +9,7 @@ import useSWR from "swr";
 import { CategoryBadge, CategorySwatch } from "@/components/CategoryBadge";
 import { CigaretteEquivalent } from "@/components/CigaretteEquivalent";
 import { DISCLAIMER, useAdvice } from "@/components/health/advice-common";
-import { HistoryChart } from "@/components/history/HistoryChart";
+import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
 import { ShareButton } from "@/components/ShareButton";
 import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
@@ -27,6 +28,12 @@ import { cityShareUrl, parseRange, parseSharedPrefs } from "@/lib/share";
 import { combineStale, staleMetaOf } from "@/lib/stale";
 import { datesEnding, localParts } from "@/lib/time";
 import type { ForecastResponse, HistoryResponse } from "@/types/api";
+
+/** Recharts loads only when the history chart renders. */
+const HistoryChart = dynamic(
+  () => import("@/components/history/HistoryChart").then((m) => m.HistoryChart).catch(offlineFallback("The history chart")),
+  { ssr: false, loading: () => <Skeleton className="h-64" label="Loading chart" /> },
+);
 
 export interface ReportPlace {
   slug: string;
@@ -124,7 +131,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="no-print flex flex-wrap items-start gap-2" aria-label="Report actions" role="toolbar">
-        <Link href={`/city/${place.slug}`} className={btn}>
+        <Link prefetch={false} href={`/city/${place.slug}`} className={btn}>
           ← Back to {place.name}
         </Link>
         <button type="button" className={btn} disabled={!ready || exporting !== null} onClick={() => void doExport("pdf")} data-testid="download-pdf">

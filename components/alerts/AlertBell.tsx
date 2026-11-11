@@ -57,7 +57,7 @@ export function AlertBell() {
         {unread ? (
           <span
             data-testid="unread-count"
-            className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-danger px-1 text-center text-[11px] font-bold leading-5 text-white"
+            className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-danger px-1 text-center text-[11px] font-bold leading-5 text-danger-contrast"
           >
             {unread > 99 ? "99+" : unread}
           </span>
@@ -88,7 +88,7 @@ export function AlertBell() {
             <ul className="max-h-80 overflow-y-auto">
               {events.slice(0, 6).map((e) => (
                 <li key={e.id} className="rounded-lg px-2 py-2 text-sm hover:bg-surface-2">
-                  <Link href={`/city/${e.citySlug}`} onClick={() => setOpen(false)} className="block">
+                  <Link prefetch={false} href={`/city/${e.citySlug}`} onClick={() => setOpen(false)} className="block">
                     <span className="flex items-start gap-2">
                       {!e.read ? <span aria-label="unread" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-danger" /> : <span className="mt-1.5 h-2 w-2 shrink-0" />}
                       <span className="min-w-0">

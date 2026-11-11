@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { useViewOverride } from "@/hooks/useViewOverride";
 import { createStoredValue, useStoredValue } from "@/lib/storage";

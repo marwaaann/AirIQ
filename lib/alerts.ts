@@ -10,7 +10,7 @@
  * notification but the event is still logged, marked as suppressed.
  */
 
-import { z } from "zod";
+import { z } from "./zod.ts";
 
 import { localParts, WEEKDAY_SHORT } from "./time.ts";
 

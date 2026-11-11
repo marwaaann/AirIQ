@@ -3,7 +3,7 @@
  * /api/assistant route and the chat UI. Pure module.
  */
 
-import { z } from "zod";
+import { z } from "../zod.ts";
 
 import { PROFILE_IDS } from "../profiles.ts";
 

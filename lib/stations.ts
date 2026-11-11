@@ -1,15 +1,16 @@
 import "server-only";
 
+import { getEnv } from "@/lib/env";
 import type { Bounds } from "@/lib/grid";
 import { UpstreamError } from "@/lib/http";
 import { getOpenAqStations } from "@/lib/openaq";
 import { getWaqiStations } from "@/lib/waqi";
 import type { StationsResponse } from "@/types/api";
 
-/** Optional keys, read only on the server. Empty strings count as missing. */
+/** Optional keys, read only on the server via lib/env.ts. Empty strings count as missing. */
 function key(name: "WAQI_TOKEN" | "OPENAQ_API_KEY"): string | null {
-  const v = process.env[name]?.trim();
-  return v ? v : null;
+  const env = getEnv();
+  return (name === "WAQI_TOKEN" ? env.waqiToken : env.openaqKey) ?? null;
 }
 
 export function configuredStationSources(): { waqi: boolean; openaq: boolean } {

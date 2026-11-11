@@ -1,7 +1,6 @@
 "use client";
 
-import { ReferenceArea } from "recharts";
-
+// No Recharts import here: views that only need colors stay chart-free.
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
 import { EU_CATEGORIES, US_CATEGORIES } from "@/lib/aqi-categories";
 import type { AqiScale } from "@/types/air";
@@ -34,22 +33,4 @@ export function niceYMax(maxValue: number, scale: AqiScale): number {
   const target = Math.max(maxValue * 1.08, scale === "us" ? 60 : 30);
   const edge = cats.find((c) => Number.isFinite(c.max) && c.max >= target);
   return edge ? edge.max : Math.ceil(target / 50) * 50;
-}
-
-/** Category background bands (rendered as direct chart children). */
-export function categoryBands(scale: AqiScale, yMax: number, opacity: number) {
-  const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
-  return cats
-    .filter((c) => c.min < yMax)
-    .map((c) => (
-      <ReferenceArea
-        key={c.key}
-        y1={c.min}
-        y2={Math.min(Number.isFinite(c.max) ? c.max : yMax, yMax)}
-        fill={c.color}
-        fillOpacity={opacity}
-        stroke="none"
-        ifOverflow="hidden"
-      />
-    ));
 }

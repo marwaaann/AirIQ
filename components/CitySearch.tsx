@@ -55,10 +55,10 @@ export function CitySearch({ variant = "compact", onSelected, onPick, label = "S
 
   function select(place: GeoLocation) {
     if (onPick) {
+      // Focus stays in the input (e.g. to add another city); the caller moves it if the input goes away.
       setQuery("");
       setOpen(false);
       setActive(-1);
-      inputRef.current?.blur();
       onPick(place);
       return;
     }

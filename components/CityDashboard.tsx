@@ -221,6 +221,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
             getUrl={() => cityShareUrl(window.location.origin, { slug, tab, range, scale, profile: profile.id })}
           />
           <Link
+            prefetch={false}
             href={`/city/${slug}/report?${new URLSearchParams({ range, scale, profile: profile.id })}`}
             className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-surface-2"
             data-testid="report-link"

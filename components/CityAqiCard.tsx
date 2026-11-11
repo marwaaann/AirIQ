@@ -41,10 +41,12 @@ export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: ()
   const h = headline(data.current, scale);
   return (
     <div className="group relative h-full">
+      {/* No prefetch: prefetching a city page renders it on the server, which costs
+          upstream API calls (geocoding, live AQI) for pages that may never be opened. */}
       <Link
         href={`/city/${city.slug}`}
+        prefetch={false}
         className="flex h-full min-h-36 flex-col gap-2 overflow-hidden rounded-2xl border border-border bg-surface p-4 transition-shadow hover:shadow-md"
-        aria-label={`${city.name}: ${h.scaleLabel} ${h.value ?? "not available"}${h.category ? `, ${h.category.label}` : ""}`}
       >
         <span
           aria-hidden
@@ -55,7 +57,11 @@ export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: ()
           <p className="truncate font-semibold">{city.name}</p>
           {city.subtitle ? <p className="truncate text-xs text-muted">{city.subtitle}</p> : null}
         </div>
-        <p className="font-mono text-4xl font-bold tabular-nums">{h.value !== null ? Math.round(h.value) : "n/a"}</p>
+        {/* The visible text is the link's name (WCAG 2.5.3); the scale is added for screen readers. */}
+        <p className="font-mono text-4xl font-bold tabular-nums">
+          <span className="sr-only">{h.scaleLabel} </span>
+          {h.value !== null ? Math.round(h.value) : "n/a"}
+        </p>
         {h.category ? <CategoryBadge category={h.category} size="sm" /> : <span className="text-xs text-muted">No index</span>}
         <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.current.timezone} />
       </Link>

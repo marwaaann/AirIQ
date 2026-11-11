@@ -22,9 +22,10 @@ export function gridIcon(label: string, category: AqiCategory | null, spoken: st
   const icon = L.divIcon({
     className: "airiq-divicon",
     html: `<span class="airiq-badge" role="img" aria-label="${esc(spoken)}" style="background-color:${c.color};color:${c.textColor}"><i class="airiq-badge-pattern aqi-pattern-${c.pattern}" style="background-color:${c.color}"></i>${esc(label)}</span>`,
-    iconSize: [width, 22],
-    iconAnchor: [width / 2, 11],
-    popupAnchor: [0, -12],
+    // 24px tall: the WCAG 2.2 minimum target size.
+    iconSize: [width, 24],
+    iconAnchor: [width / 2, 12],
+    popupAnchor: [0, -13],
   });
   cache.set(key, icon);
   return icon;

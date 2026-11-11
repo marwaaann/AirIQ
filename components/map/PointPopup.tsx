@@ -48,7 +48,7 @@ export function GridPopup({ cell, scale }: { cell: GridCell; scale: AqiScale }) 
       <p className="text-xs text-muted">
         Updated <time dateTime={cell.time}>{timeAgo(cell.time)}</time>
       </p>
-      <Link href={`/city/${slug}`} className="font-semibold text-brand underline underline-offset-4">
+      <Link prefetch={false} href={`/city/${slug}`} className="font-semibold text-brand underline underline-offset-4">
         Open full dashboard →
       </Link>
     </div>
@@ -92,7 +92,7 @@ export function StationPopup({ station }: { station: Station }) {
         </p>
       ) : null}
       <div className="flex flex-col gap-1">
-        <Link href={`/city/${slug}`} className="font-semibold text-brand underline underline-offset-4">
+        <Link prefetch={false} href={`/city/${slug}`} className="font-semibold text-brand underline underline-offset-4">
           Open full dashboard →
         </Link>
         {station.url ? (

@@ -2,7 +2,8 @@
 
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { categoryBands, niceYMax, useChartColors } from "@/components/charts/chart-kit";
+import { categoryBands } from "@/components/charts/category-bands";
+import { niceYMax, useChartColors } from "@/components/charts/chart-kit";
 import { getCategory } from "@/lib/aqi-categories";
 import { formatInZone } from "@/lib/format";
 import type { AqiScale } from "@/types/air";

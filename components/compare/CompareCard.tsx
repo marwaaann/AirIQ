@@ -43,7 +43,7 @@ export function CompareCard({
             <svg aria-hidden width="20" height="8" className="shrink-0">
               <line x1="0" y1="4" x2="20" y2="4" stroke={color} strokeWidth="3" strokeDasharray={dash || undefined} />
             </svg>
-            <Link href={`/city/${city.slug}`} className="truncate hover:underline">
+            <Link prefetch={false} href={`/city/${city.slug}`} className="truncate hover:underline">
               {city.name}
             </Link>
           </h2>

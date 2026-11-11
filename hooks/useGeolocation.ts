@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 import { fallbackPlaceName } from "@/lib/place";
 import type { LabelKind } from "@/lib/slug";
@@ -97,9 +97,13 @@ export async function reverseLabel(latitude: number, longitude: number, signal?:
 /**
  * Resolve a label for coordinates in the background. Starts with the
  * coordinate fallback so the UI never waits on the network.
+ *
+ * Only for "Use my location": BigDataCloud's free client endpoint may be used
+ * only with the device's own current location (its terms, checked 2026-11-11).
+ * Map points keep their "Map point (lat, lon)" label.
  */
 export function useReverseLabel(latitude: number, longitude: number, kind: LabelKind | null) {
-  const enabled = kind !== null;
+  const enabled = kind === "my-location";
   const [label, setLabel] = useState<PlaceLabel>(() => fallbackLocationLabel(latitude, longitude, kind ?? "my-location"));
   const [resolved, setResolved] = useState(false);
   const done = useRef(false);
