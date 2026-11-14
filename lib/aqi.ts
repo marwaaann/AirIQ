@@ -139,12 +139,17 @@ export function truncate(value: number, decimals: number): number {
 /**
  * Linear interpolation inside the matching breakpoint. Concentrations that fall
  * in the small gaps between truncated bands (e.g. 9.05 before truncation) are
- * handled by truncating first. Above the top band the index is capped at 500.
+ * handled by truncating first.
+ *
+ * Above the top band the EPA index is undefined. AirIQ extends the top band's
+ * line instead of clipping, so an extreme reading keeps its size (e.g. PM2.5
+ * 400 µg/m³ → 649). The UI shows any value above 500 as "500+" with the
+ * computed number in its label ("beyond index").
  */
 export function indexFromTable(c: number, table: Table): number | null {
   if (!Number.isFinite(c) || c < 0) return null;
   const top = table[table.length - 1];
-  if (c > top.cHigh) return 500;
+  if (c > top.cHigh) return Math.round(((top.iHigh - top.iLow) / (top.cHigh - top.cLow)) * (c - top.cLow) + top.iLow);
   for (const b of table) {
     if (c >= b.cLow && c <= b.cHigh) {
       return Math.round(((b.iHigh - b.iLow) / (b.cHigh - b.cLow)) * (c - b.cLow) + b.iLow);

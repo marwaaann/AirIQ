@@ -14,6 +14,7 @@ import { useNotificationPermission, type NotificationStatus } from "@/hooks/useN
 import { useProfile } from "@/hooks/useProfile";
 import { eventsStore, newRuleId, requestAlertCheck, ruleStatesStore, rulesStore } from "@/lib/alert-store";
 import { ALERT_METRICS, AlertRuleSchema, FORECAST_HOURS, metricLabel, type AlertMetric, type AlertRule } from "@/lib/alerts";
+import { SCALE_NAME } from "@/lib/aqi-categories";
 import { formatHour } from "@/lib/time";
 import { timeAgo } from "@/lib/format";
 import { makeCitySlug } from "@/lib/slug";
@@ -213,10 +214,10 @@ function RuleForm() {
           <fieldset className={field}>
             <legend className="mb-1 font-medium">Scale</legend>
             <div className="flex gap-3">
-              {(["us", "eu"] as const).map((s) => (
+              {(["us", "eu", "in"] as const).map((s) => (
                 <label key={s} className="flex items-center gap-1.5">
                   <input type="radio" name="scale" checked={scale === s} onChange={() => setScale(s)} className="accent-[var(--brand)]" />
-                  {s === "us" ? "US AQI" : "European AQI"}
+                  {SCALE_NAME[s]}
                 </label>
               ))}
             </div>
@@ -236,8 +237,9 @@ function RuleForm() {
               className={control}
             />
             <span className="text-xs text-muted">
-              Default for your profile ({profile.label}): {defaultThreshold} on the {scale === "us" ? "US" : "European"} scale. The threshold is stored with this
-              scale.
+              Default for your profile ({profile.label}): {defaultThreshold} on the {SCALE_NAME[scale]}. The threshold is stored with this scale.
+              {scale === "in" ? " NAQI is computed by AirIQ from concentrations (station-based when available, else model-based)." : ""} Current-reading
+              alerts use the headline in effect (nearby stations first, as set in Data source).
             </span>
           </label>
           <label className={field}>
@@ -475,6 +477,11 @@ function EventHistory() {
                 ) : null}
               </p>
               <p className="text-muted">{e.message}</p>
+              {e.source ? (
+                <p className="text-xs" data-testid="event-source">
+                  Source: {e.source}
+                </p>
+              ) : null}
               <p className="text-xs text-muted">
                 <time dateTime={e.createdAt}>{timeAgo(e.createdAt, now)}</time> ·{" "}
                 <Link prefetch={false} href={`/city/${e.citySlug}`} className="underline underline-offset-2">

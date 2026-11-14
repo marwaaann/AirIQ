@@ -4,7 +4,7 @@ import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer,
 
 import { categoryBands } from "@/components/charts/category-bands";
 import { niceYMax, useChartColors } from "@/components/charts/chart-kit";
-import { getCategory, POLLUTANT_INFO, type PollutantKey } from "@/lib/aqi-categories";
+import { formatIndex, getCategory, POLLUTANT_INFO, SCALE_SHORT, type PollutantKey } from "@/lib/aqi-categories";
 import { formatLocalDate } from "@/lib/format";
 import type { DayStat } from "@/lib/history-stats";
 import type { AqiScale } from "@/types/air";
@@ -21,11 +21,12 @@ interface Row {
   dominant: string | null;
 }
 
-const fmt = (v: number | null, metric: HistoryMetric) =>
-  v === null ? "n/a" : metric === "aqi" ? String(Math.round(v)) : v >= 100 ? String(Math.round(v)) : v.toFixed(1);
+const fmtWith = (scale: AqiScale) => (v: number | null, metric: HistoryMetric) =>
+  v === null ? "n/a" : metric === "aqi" ? formatIndex(v, scale) : v >= 100 ? String(Math.round(v)) : v.toFixed(1);
 
 function TooltipBody({ row, metric, scale }: { row: Row; metric: HistoryMetric; scale: AqiScale }) {
-  const unit = metric === "aqi" ? (scale === "us" ? "US AQI" : "EU AQI") : "µg/m³";
+  const unit = metric === "aqi" ? SCALE_SHORT[scale] : "µg/m³";
+  const fmt = fmtWith(scale);
   const cat = metric === "aqi" && row.mean !== null ? getCategory(row.mean, scale) : null;
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
@@ -58,7 +59,8 @@ export function HistoryChart({ days, metric, scale }: { days: readonly DayStat[]
   }));
   const dataMax = Math.max(0, ...rows.map((r) => r.max ?? 0));
   const yMax = metric === "aqi" ? niceYMax(dataMax, scale) : Math.ceil(Math.max(dataMax, POLLUTANT_INFO[metric].who.value) * 1.1);
-  const unit = metric === "aqi" ? (scale === "us" ? "US AQI" : "EU AQI") : `${POLLUTANT_INFO[metric].short} µg/m³`;
+  const unit = metric === "aqi" ? SCALE_SHORT[scale] : `${POLLUTANT_INFO[metric].short} µg/m³`;
+  const fmt = fmtWith(scale);
   const withMean = rows.filter((r) => r.mean !== null);
   const summary = withMean.length
     ? `Daily ${metric === "aqi" ? "AQI" : POLLUTANT_INFO[metric].short} over ${rows.length} days, ${unit}: daily means range from ${fmt(Math.min(...withMean.map((r) => r.mean!)), metric)} to ${fmt(Math.max(...withMean.map((r) => r.mean!)), metric)}. ${rows.length - withMean.length} days have no data.`

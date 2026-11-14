@@ -6,8 +6,9 @@ import { CategoryBadge } from "@/components/CategoryBadge";
 import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import type { CompareCityData } from "@/hooks/useCompareCity";
-import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
-import { headline } from "@/lib/aqi-display";
+import { beyondIndexLabel, formatIndex, getCategory, isBeyondIndex, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME } from "@/lib/aqi-categories";
+import { headline as modelHeadline } from "@/lib/aqi-display";
+import { sourceLabel, type HeadlineSource } from "@/lib/headline-source";
 import { errorMessage } from "@/lib/fetcher";
 import { formatConcentration, formatPlaceTime, formatRatio } from "@/lib/format";
 import { staleMetaOf } from "@/lib/stale";
@@ -19,6 +20,7 @@ const BAR_MAX_RATIO = 4;
 export function CompareCard({
   d,
   scale,
+  headline: hs,
   rank,
   color,
   dash,
@@ -26,6 +28,7 @@ export function CompareCard({
 }: {
   d: CompareCityData;
   scale: AqiScale;
+  headline: HeadlineSource | null;
   rank: number | null;
   color: string;
   dash: string;
@@ -33,7 +36,9 @@ export function CompareCard({
 }) {
   const city = d.city!;
   const { data, error, isLoading, isValidating, mutate } = d.air;
-  const h = data ? headline(data.current, scale) : null;
+  const h = data ? modelHeadline(data.current, scale) : null;
+  const value = hs?.value ?? null;
+  const category = value !== null ? getCategory(value, scale) : null;
 
   return (
     <article className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4" data-testid="compare-card" data-slug={city.slug}>
@@ -61,18 +66,25 @@ export function CompareCard({
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <span className="text-4xl font-bold" data-testid="compare-aqi">
-              {h.value ?? "n/a"}
+            <span className="text-4xl font-bold" data-testid="compare-aqi" title={value !== null && isBeyondIndex(value, scale) ? beyondIndexLabel(value, scale) : undefined}>
+              {formatIndex(value, scale)}
             </span>
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted">{h.scaleLabel}</span>
-              {h.category ? <CategoryBadge category={h.category} size="sm" /> : null}
+              <span className="text-xs text-muted">{SCALE_NAME[scale]}</span>
+              {category ? <CategoryBadge category={category} size="sm" /> : null}
             </div>
           </div>
+          {hs ? (
+            <p className="text-xs font-medium" data-testid="compare-source">
+              Source: {sourceLabel(hs)}
+              {hs.source !== "model" && hs.modelValue !== null ? ` · model ${formatIndex(hs.modelValue, scale)}` : ""}
+            </p>
+          ) : null}
+          {scale === "in" && value === null ? <p className="text-xs">Not enough data for NAQI.</p> : null}
           <p className="text-sm">
-            Main pollutant: <strong>{h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</strong>
+            Main pollutant (model): <strong>{h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</strong>
           </p>
-          <p className="text-xs text-muted">{formatPlaceTime(data.current.time, data.current.timezone)}</p>
+          <p className="text-xs text-muted">{formatPlaceTime(hs?.observedAt ?? data.current.time, data.current.timezone)}</p>
           <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.current.timezone} onRetry={() => void mutate()} retrying={isValidating} />
           <ul className="flex flex-col gap-1.5" aria-label={`${city.name} pollutants relative to WHO guidelines`}>
             {POLLUTANT_ORDER.map((p) => {
@@ -102,7 +114,7 @@ export function CompareCard({
               );
             })}
           </ul>
-          <p className="text-[11px] text-muted">Bars: current value ÷ WHO 2021 guideline (line = 1×, bar full = {BAR_MAX_RATIO}× or more).</p>
+          <p className="text-[11px] text-muted">Bars: current model concentration ÷ WHO 2021 guideline (line = 1×, bar full = {BAR_MAX_RATIO}× or more).</p>
           {error ? <ErrorState compact title="Refresh failed, showing the last reading" message={errorMessage(error)} onRetry={() => void mutate()} /> : null}
         </>
       )}

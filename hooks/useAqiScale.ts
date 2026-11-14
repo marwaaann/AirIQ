@@ -7,10 +7,10 @@ import { useViewOverride } from "@/hooks/useViewOverride";
 import { createStoredValue, useStoredValue } from "@/lib/storage";
 import type { AqiScale } from "@/types/air";
 
-export const scaleStore = createStoredValue<AqiScale>("airiq:aqi-scale", z.enum(["us", "eu"]), "us");
+export const scaleStore = createStoredValue<AqiScale>("airiq:aqi-scale", z.enum(["us", "eu", "in"]), "us");
 
 /**
- * US EPA vs European AQI, persisted and shared across the whole app.
+ * US EPA, European AQI or India NAQI, persisted and shared across the whole app.
  * Inside a shared link's view (?scale=), that value is shown instead without
  * being saved. Choosing a scale saves it and drops the link's value.
  */

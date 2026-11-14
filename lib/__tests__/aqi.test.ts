@@ -69,8 +69,15 @@ describe("PM2.5 (2024 breakpoints)", () => {
   it("truncates before lookup (9.05 → 9.0 → Good)", () => {
     assert.equal(pm25Index(9.05), 50);
   });
-  it("caps at 500 above the table", () => {
-    assert.equal(pm25Index(900), 500);
+  it("extends the top band above the table instead of clipping (beyond index)", () => {
+    // Top 2024 band: 225.5–325.4 µg/m³ → 301–500 (slope 199/99.9).
+    assert.equal(pm25Index(325.4), 500);
+    assert.equal(pm25Index(400), Math.round(500 + (400 - 325.4) * (199 / 99.9)));
+    assert.equal(pm25Index(900), 1645);
+    // 2012 table: anything above 500.4 µg/m³ is beyond 500 too, never NaN.
+    const v = pm25Index(600, "2012") as number;
+    assert.ok(v > 500 && Number.isFinite(v), String(v));
+    assert.equal(pm25Index(500.4, "2012"), 500);
   });
   it("rejects invalid input", () => {
     assert.equal(pm25Index(-1), null);
@@ -187,7 +194,9 @@ describe("categories", () => {
     assert.equal(getUsCategory(151).key, "unhealthy");
     assert.equal(getUsCategory(300).key, "very-unhealthy");
     assert.equal(getUsCategory(301).key, "hazardous");
-    assert.equal(getUsCategory(999).key, "hazardous");
+    assert.equal(getUsCategory(500).key, "hazardous");
+    assert.equal(getUsCategory(501).key, "beyond-index");
+    assert.equal(getUsCategory(999).key, "beyond-index");
     assert.equal(getUsCategory(50.4).key, "good");
   });
   it("maps European AQI bands", () => {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { computeUsAqiAt, trailingMean, type HourlyConcentrations } from "@/lib/aqi";
+import { naqiAt, type NaqiHourly, type NaqiResult } from "@/lib/naqi";
 import { GEOCODE_REVALIDATE_SECONDS, REVALIDATE_SECONDS } from "@/lib/cache";
 import { fetchJson, UpstreamError } from "@/lib/http";
 import {
@@ -116,6 +117,7 @@ function toSeries(r: AqResponse): AirSeries {
         return p;
       })
     : [];
+  addNaqi(points);
   return {
     latitude: r.latitude,
     longitude: r.longitude,
@@ -123,6 +125,35 @@ function toSeries(r: AqResponse): AirSeries {
     utcOffsetSeconds: r.utc_offset_seconds,
     points,
   };
+}
+
+function naqiHourly(points: readonly HourlyPoint[]): NaqiHourly {
+  const col = (p: Pollutant) => points.map((x) => x.pollutants[p]);
+  return {
+    pm2_5: col("pm2_5"),
+    pm10: col("pm10"),
+    nitrogen_dioxide: col("nitrogen_dioxide"),
+    sulphur_dioxide: col("sulphur_dioxide"),
+    ozone: col("ozone"),
+    carbon_monoxide: col("carbon_monoxide"),
+  };
+}
+
+/** NAQI sub-indices limited to the pollutants AirIQ fetches (NH₃ is not in Open-Meteo's global data). */
+export function naqiSubIndexValues(r: NaqiResult): SubIndexValues {
+  const out: SubIndexValues = {};
+  for (const [k, v] of Object.entries(r.subIndices)) if (k !== "ammonia" && typeof v === "number") out[k as Pollutant] = v;
+  return out;
+}
+
+/** India NAQI for every point, computed by AirIQ from the series' own hourly concentrations. */
+function addNaqi(points: HourlyPoint[]): void {
+  const h = naqiHourly(points);
+  for (let i = 0; i < points.length; i++) {
+    const r = naqiAt(h, i);
+    points[i].inAqi = r.aqi;
+    points[i].inSubIndices = naqiSubIndexValues(r);
+  }
 }
 
 function hourlyConcentrations(points: readonly HourlyPoint[]): HourlyConcentrations {
@@ -261,6 +292,10 @@ export async function getCurrentAir(lat: number, lon: number): Promise<AirRespon
     euSubIndices: subIndices(c, "eu"),
     dominantUs: null,
     dominantEu: null,
+    inAqi: null,
+    inSubIndices: {},
+    dominantIn: null,
+    inReason: "Not enough data: no hourly concentrations returned.",
   };
   current.dominantUs = dominantOf(current.usSubIndices);
   current.dominantEu = dominantOf(current.euSubIndices);
@@ -281,6 +316,13 @@ export async function getCurrentAir(lat: number, lon: number): Promise<AirRespon
     };
   }
   current.dominantUs ??= epa.dominant;
+  if (nowIdx >= 0) {
+    const n = naqiAt(naqiHourly(series.points), nowIdx);
+    current.inAqi = n.aqi;
+    current.inSubIndices = naqiSubIndexValues(n);
+    current.dominantIn = n.dominant && n.dominant !== "ammonia" ? n.dominant : null;
+    current.inReason = n.reason;
+  }
 
   const recent: AirSeries = {
     ...series,
@@ -349,6 +391,10 @@ export async function getAirGrid(points: readonly { lat: number; lon: number }[]
     latitude: points.map((p) => String(p.lat)).join(","),
     longitude: points.map((p) => String(p.lon)).join(","),
     current: [...AQ_VARIABLES, ...GRID_SUB_INDEX_VARIABLES].join(","),
+    // The last 24 h of concentrations, so each point also gets an India NAQI (24-h / 8-h means).
+    hourly: AQ_VARIABLES.join(","),
+    past_days: "1",
+    forecast_days: "1",
     timezone: "GMT",
   });
   const data = await fetchJson(`${AQ_BASE}?${params}`, {
@@ -367,6 +413,9 @@ export async function getAirGrid(points: readonly { lat: number; lon: number }[]
     const c = r.current;
     const req = points[i];
     if (!c) return; // No reading for this point: leave a gap rather than invent one.
+    const series = toSeries(r);
+    const at = indexAtOrBefore(series.points, localToUtcIso(c.time, 0));
+    const naqiPoint = at >= 0 ? series.points[at] : null;
     cells.push({
       // Report the requested (snapped) position so the grid stays regular;
       // Open-Meteo picks its nearest model cell internally.
@@ -385,6 +434,8 @@ export async function getAirGrid(points: readonly { lat: number; lon: number }[]
       },
       usSubIndices: subIndices(c, "us"),
       euSubIndices: subIndices(c, "eu"),
+      inAqi: naqiPoint?.inAqi ?? null,
+      inSubIndices: naqiPoint?.inSubIndices ?? {},
     });
   });
   return cells;

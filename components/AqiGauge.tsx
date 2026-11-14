@@ -5,8 +5,18 @@ import { useId } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { RefreshIcon } from "@/components/icons";
 import { useNow } from "@/hooks/useNow";
-import { EU_CATEGORIES, SCALE_MAX, US_CATEGORIES, type AqiCategory } from "@/lib/aqi-categories";
+import {
+  beyondIndexLabel,
+  describeIndex,
+  formatIndex,
+  gaugeCategories,
+  isBeyondIndex,
+  SCALE_MAX,
+  SCALE_NAME,
+  type AqiCategory,
+} from "@/lib/aqi-categories";
 import { formatPlaceTime, timeAgo } from "@/lib/format";
+import { gaugeFraction } from "@/lib/gauge";
 import type { AqiScale } from "@/types/air";
 
 const CX = 120;
@@ -25,19 +35,6 @@ function arcPath(a0: number, a1: number, r = R) {
   const p0 = polar(a0, r);
   const p1 = polar(a1, r);
   return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${r} ${r} 0 0 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
-}
-
-/** Position on the gauge (0..1). Bands are equal width for readability; value interpolates inside its band. */
-export function gaugeFraction(value: number, categories: readonly AqiCategory[], scaleMax: number): number {
-  const n = categories.length;
-  const idx = Math.max(
-    0,
-    categories.findIndex((c) => value <= c.max),
-  );
-  const band = categories[idx] ?? categories[n - 1];
-  const hi = Number.isFinite(band.max) ? band.max : scaleMax;
-  const within = hi > band.min ? Math.min(1, Math.max(0, (value - band.min) / (hi - band.min))) : 1;
-  return Math.min(1, (idx + within) / n);
 }
 
 function PatternDefs({ prefix }: { prefix: string }) {
@@ -60,6 +57,9 @@ function PatternDefs({ prefix }: { prefix: string }) {
       <pattern id={`${prefix}-solid-stripes`} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
         <rect width="4" height="8" fill="rgba(255,255,255,0.4)" />
       </pattern>
+      <pattern id={`${prefix}-zigzag`} width="8" height="8" patternUnits="userSpaceOnUse">
+        <path d="M0 6 L4 2 L8 6" stroke="rgba(255,255,255,0.6)" strokeWidth="1.6" fill="none" />
+      </pattern>
     </defs>
   );
 }
@@ -68,24 +68,30 @@ interface AqiGaugeProps {
   value: number | null;
   category: AqiCategory | null;
   scale: AqiScale;
-  /** ISO time of the reading (from the API). */
+  /** ISO time of the reading (station observation or model hour). */
   time: string;
   timezone: string;
+  /** How the headline was chosen, e.g. "Median of 18 stations within 15 km · highest 531 at Anand Vihar (9 km) · latest 18:00 IST". */
+  subtitle?: string;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
 
-export function AqiGauge({ value, category, scale, time, timezone, onRefresh, refreshing = false }: AqiGaugeProps) {
+export function AqiGauge({ value, category, scale, time, timezone, subtitle, onRefresh, refreshing = false }: AqiGaugeProps) {
   const rawId = useId();
   const prefix = `g${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const now = useNow(30_000);
-  const categories = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
+  // The index's own bands; "Beyond index" is shown by pinning the pointer at the end.
+  const categories = gaugeCategories(scale);
   const n = categories.length;
   const step = 180 / n;
-  const frac = value !== null ? gaugeFraction(value, categories, SCALE_MAX[scale]) : null;
+  const beyond = isBeyondIndex(value, scale);
+  // Beyond the index: pointer pinned at the end of the scale.
+  const frac = value !== null ? (beyond ? 1 : gaugeFraction(value, categories, SCALE_MAX[scale])) : null;
   const markerAngle = frac !== null ? 180 - frac * 180 : null;
   const marker = markerAngle !== null ? polar(markerAngle) : null;
-  const scaleName = scale === "us" ? "US AQI" : "European AQI";
+  const scaleName = SCALE_NAME[scale];
+  const activeKey = beyond && category && !categories.some((c) => c.key === category.key) ? categories[n - 1].key : category?.key;
 
   return (
     <section aria-labelledby={`${prefix}-title`} className="flex flex-col items-center gap-3">
@@ -97,18 +103,14 @@ export function AqiGauge({ value, category, scale, time, timezone, onRefresh, re
           viewBox="0 0 240 136"
           className="w-full"
           role="img"
-          aria-label={
-            value !== null && category
-              ? `${scaleName} ${Math.round(value)}, ${category.label}`
-              : `${scaleName} not available`
-          }
+          aria-label={value !== null && category ? `${describeIndex(value, scale)}, ${category.label}` : `${scaleName} not available`}
         >
           <PatternDefs prefix={prefix} />
           {categories.map((c, i) => {
             const a0 = 180 - i * step - (i === 0 ? 0 : GAP_DEG / 2);
             const a1 = 180 - (i + 1) * step + (i === n - 1 ? 0 : GAP_DEG / 2);
             const d = arcPath(a0, a1);
-            const isActive = category?.key === c.key;
+            const isActive = activeKey === c.key;
             return (
               <g key={c.key} opacity={category && !isActive ? 0.5 : 1}>
                 <path d={d} stroke={c.color} strokeWidth={STROKE} fill="none" />
@@ -119,15 +121,15 @@ export function AqiGauge({ value, category, scale, time, timezone, onRefresh, re
             );
           })}
           {marker ? (
-            <g>
-              <circle cx={marker.x} cy={marker.y} r={STROKE / 2 + 4} fill="var(--surface)" stroke="var(--text)" strokeWidth="3" />
-              <circle cx={marker.x} cy={marker.y} r={4} fill="var(--text)" />
+            <g data-testid="gauge-marker" data-beyond={beyond ? "true" : "false"}>
+              <circle cx={marker.x} cy={marker.y} r={STROKE / 2 + 4} fill="var(--surface)" stroke="var(--text)" strokeWidth={beyond ? 4.5 : 3} />
+              <circle cx={marker.x} cy={marker.y} r={beyond ? 5.5 : 4} fill="var(--text)" />
             </g>
           ) : null}
         </svg>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center">
-          <span className="font-mono text-6xl font-bold leading-none tabular-nums sm:text-7xl" aria-hidden>
-            {value !== null ? Math.round(value) : "n/a"}
+          <span className="font-mono text-6xl font-bold leading-none tabular-nums sm:text-7xl" aria-hidden data-testid="gauge-value" title={beyond && value !== null ? beyondIndexLabel(value, scale) : undefined}>
+            {formatIndex(value, scale)}
           </span>
           <span className="mt-1 text-xs font-medium uppercase tracking-wider text-muted" aria-hidden>
             {scaleName}
@@ -135,6 +137,16 @@ export function AqiGauge({ value, category, scale, time, timezone, onRefresh, re
         </div>
       </div>
 
+      {beyond && value !== null ? (
+        <p className="rounded-full border-2 border-text px-3 py-0.5 text-sm font-bold" data-testid="beyond-scale">
+          Beyond scale: {beyondIndexLabel(value, scale)}
+        </p>
+      ) : null}
+      {subtitle ? (
+        <p className="max-w-md text-center text-xs font-medium text-muted" data-testid="headline-subtitle">
+          {subtitle}
+        </p>
+      ) : null}
       {category ? (
         <>
           <CategoryBadge category={category} />
@@ -147,7 +159,7 @@ export function AqiGauge({ value, category, scale, time, timezone, onRefresh, re
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted">
         <time dateTime={time} title={formatPlaceTime(time, timezone)}>
-          Updated {timeAgo(time, now)}
+          Updated {timeAgo(time, now)} ({formatPlaceTime(time, timezone)})
         </time>
         <span aria-hidden>·</span>
         <span>Auto-refreshes every 10 min</span>

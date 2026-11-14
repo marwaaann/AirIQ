@@ -1,0 +1,50 @@
+AirIQ Phase 9 step 1: Delhi-NCR station check
+Run at 2026-11-14T16:18:20.640Z (2026-11-14 21:48 IST)
+Source: WAQI /map/bounds/?latlng=28.2,76.6,29.3,77.8&networks=all (token omitted). AQI values are WAQI's US-EPA-based index values, not concentrations.
+Stations returned: 68; with a numeric AQI: 67; without ("-"): 1
+
+15 highest stations:
+rank | AQI | station | lat, lon | km from Delhi centre | km from Sonipat | observed (IST) | age
+ 1 | 440 | Anand Vihar, Delhi, Delhi, India | 28.651, 77.315 | 11.2 | 48.3 | 2026-11-14 21:00 IST | 0.8 h
+ 2 | 335 | PGDAV College, Sriniwaspuri, Delhi, Delhi, India | 28.567, 77.251 | 6.3 | 53.2 | 2026-11-14 21:00 IST | 0.8 h
+ 3 | 331 | Wazirpur, Delhi | 28.700, 77.165 | 10.9 | 36.3 | 2026-11-14 19:00 IST | 2.8 h
+ 4 | 328 | NSIT Dwarka, Delhi | 28.609, 77.033 | 17.3 | 43.5 | 2026-11-14 19:00 IST | 2.8 h
+ 5 | 321 | Mundka, Delhi, Delhi, India | 28.682, 77.030 | 19.3 | 35.3 | 2026-11-14 21:00 IST | 0.8 h
+ 6 | 313 | Punjabi Bagh, Delhi, Delhi, India | 28.668, 77.117 | 11.2 | 38.1 | 2026-11-14 21:00 IST | 0.8 h
+ 7 | 310 | Sector - 62, Noida, UP, India | 28.625, 77.358 | 14.5 | 53.2 | 2026-11-14 18:00 IST | 3.8 h
+ 8 | 308 | Narela, Delhi, Delhi, India | 28.821, 77.101 | 25.7 | 21.5 | 2026-11-14 21:00 IST | 0.8 h
+ 9 | 301 | Vasundhara Nagar_UIT, Bhiwadi | 28.207, 76.829 | 58.2 | 90.1 | 2026-11-14 19:00 IST | 2.8 h
+10 | 299 | ITI Shahdra, Jhilmil Industrial Area, Delhi, Delhi, India | 28.672, 77.314 | 12.3 | 46.4 | 2026-11-14 21:00 IST | 0.8 h
+11 | 291 | Pooth Khurd, Bawana, Delhi, Delhi, India | 28.776, 77.046 | 24.4 | 25.1 | 2026-11-14 21:00 IST | 0.8 h
+12 | 267 | Mother Dairy Plant, Parparganj, Delhi, Delhi, India | 28.620, 77.288 | 7.7 | 49.6 | 2026-11-14 21:00 IST | 0.8 h
+13 | 264 | Burari Crossing, Delhi, Delhi, India | 28.726, 77.203 | 12.9 | 35.3 | 2026-11-14 18:00 IST | 3.8 h
+14 | 263 | Chandni Chowk, Delhi | 28.657, 77.227 | 5.5 | 43.2 | 2026-11-14 19:00 IST | 2.8 h
+15 | 262 | North Campus, DU, Delhi | 28.657, 77.159 | 7.3 | 40.4 | 2026-11-14 19:00 IST | 2.8 h
+
+Maximum: 440 (Anand Vihar, Delhi, Delhi, India)
+Median: 215 over 67 stations
+Above 300: 9; above 500: 0
+Observed within the last 3 h: 35 (max 440, above 500: 0)
+Fresh stations within 15 km of Delhi centre: 26, median 231
+
+Open-Meteo (CAMS) model at the same coordinates, current hour:
+point | station AQI | model US AQI | model PM2.5 µg/m³ | model PM10 µg/m³ | model hour (IST)
+Delhi centre | - | 177 | 60.8 | 78 | 2026-11-14T21:30
+Sonipat centre | - | 150 | 51.8 | 73.1 | 2026-11-14T21:30
+Anand Vihar, Delhi, Delhi, India | 440 | 177 | 60.8 | 78 | 2026-11-14T21:30
+PGDAV College, Sriniwaspuri, Delhi, Delhi, India | 335 | 205 | 97.1 | 111.8 | 2026-11-14T21:30
+Wazirpur, Delhi | 331 | 177 | 60.8 | 78 | 2026-11-14T21:30
+NSIT Dwarka, Delhi | 328 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Mundka, Delhi, Delhi, India | 321 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Punjabi Bagh, Delhi, Delhi, India | 313 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Sector - 62, Noida, UP, India | 310 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Narela, Delhi, Delhi, India | 308 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Vasundhara Nagar_UIT, Bhiwadi | 301 | 194 | 71.9 | 86.8 | 2026-11-14T21:30
+ITI Shahdra, Jhilmil Industrial Area, Delhi, Delhi, India | 299 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Pooth Khurd, Bawana, Delhi, Delhi, India | 291 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Mother Dairy Plant, Parparganj, Delhi, Delhi, India | 267 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Burari Crossing, Delhi, Delhi, India | 264 | 177 | 60.8 | 78 | 2026-11-14T21:30
+Chandni Chowk, Delhi | 263 | 177 | 60.8 | 78 | 2026-11-14T21:30
+North Campus, DU, Delhi | 262 | 177 | 60.8 | 78 | 2026-11-14T21:30
+
+Conclusion: NO station in the Delhi-NCR box is above 500 at the time of this check. The claim is not supported by WAQI's live data right now.

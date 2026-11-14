@@ -8,11 +8,20 @@
  *   - forecast trigger: no forecast hour in the window exceeds the threshold.
  * Quiet hours (city local time, may cross midnight) suppress the browser
  * notification but the event is still logged, marked as suppressed.
+ *
+ * Current-reading rules use the headline in effect (station median, nearest
+ * station or model, see lib/headline-source.ts). The event records which
+ * source fired it. Values above the index top (e.g. US AQI 650) are compared
+ * as computed and shown as "500+ (computed 650)".
  */
 
 import { z } from "./zod.ts";
 
+import { formatIndex, INDEX_TOP, isBeyondIndex, SCALE_NAME } from "./aqi-categories.ts";
 import { localParts, WEEKDAY_SHORT } from "./time.ts";
+
+export const ALERT_SCALES = ["us", "eu", "in"] as const;
+export type AlertScale = (typeof ALERT_SCALES)[number];
 
 export const ALERT_METRICS = ["aqi", "pm2_5", "pm10", "nitrogen_dioxide", "ozone"] as const;
 export type AlertMetric = (typeof ALERT_METRICS)[number];
@@ -54,7 +63,7 @@ export const AlertRuleSchema = z.object({
   id: z.string().min(1).max(64),
   city: AlertCitySchema,
   metric: z.enum(ALERT_METRICS),
-  scale: z.enum(["us", "eu"]),
+  scale: z.enum(ALERT_SCALES),
   threshold: z.number().int().min(1).max(1000),
   trigger: AlertTriggerSchema,
   quietHours: QuietHoursSchema.nullable(),
@@ -78,7 +87,7 @@ export const AlertEventSchema = z.object({
   cityName: z.string(),
   kind: z.enum(["current", "forecast"]),
   metric: z.enum(ALERT_METRICS),
-  scale: z.enum(["us", "eu"]),
+  scale: z.enum(ALERT_SCALES),
   threshold: z.number(),
   value: z.number(),
   title: z.string(),
@@ -89,6 +98,8 @@ export const AlertEventSchema = z.object({
   createdAt: z.string(),
   suppressed: z.boolean(),
   read: z.boolean(),
+  /** Which data fired it, e.g. "Stations (median of 18)" or "Model (Open-Meteo)". Absent on events from before Phase 9. */
+  source: z.string().max(160).optional(),
 });
 export type AlertEvent = z.infer<typeof AlertEventSchema>;
 
@@ -130,19 +141,32 @@ export interface ReadingSource {
   time: string;
   usAqi: number | null;
   euAqi: number | null;
+  inAqi?: number | null;
   usSubIndices?: SubIdx;
   euSubIndices?: SubIdx;
+  inSubIndices?: SubIdx;
+  /** Label of the data behind the overall index, recorded on fired events. */
+  sourceLabel?: string;
+  /** Per-scale labels when the scales come from different sources (station US AQI, model EU AQI…). */
+  sourceLabels?: Partial<Record<AlertScale, string>>;
 }
 
 /** The rule's value from a reading: overall AQI or the pollutant's sub-index, ON THE RULE'S SCALE. */
-export function metricValue(src: ReadingSource, metric: AlertMetric, scale: "us" | "eu"): number | null {
-  const v = metric === "aqi" ? (scale === "us" ? src.usAqi : src.euAqi) : (scale === "us" ? src.usSubIndices : src.euSubIndices)?.[metric];
+export function metricValue(src: ReadingSource, metric: AlertMetric, scale: AlertScale): number | null {
+  const overall = scale === "us" ? src.usAqi : scale === "eu" ? src.euAqi : src.inAqi;
+  const subs = scale === "us" ? src.usSubIndices : scale === "eu" ? src.euSubIndices : src.inSubIndices;
+  const v = metric === "aqi" ? overall : subs?.[metric];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-export function metricLabel(metric: AlertMetric, scale: "us" | "eu"): string {
-  const s = scale === "us" ? "US AQI" : "European AQI";
+export function metricLabel(metric: AlertMetric, scale: AlertScale): string {
+  const s = SCALE_NAME[scale];
   return metric === "aqi" ? s : `${METRIC_SHORT[metric]} (${s} sub-index)`;
+}
+
+/** "231", or "500+ (computed 650)" above the index top. */
+export function alertValueText(v: number, scale: AlertScale): string {
+  return isBeyondIndex(v, scale) ? `${formatIndex(v, scale)} (computed ${Math.round(v)}, beyond the ${INDEX_TOP[scale]} top of the index)` : String(Math.round(v));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -246,6 +270,7 @@ export function evaluateRule(
     const next: RuleState = { ...state, lastValue: v, lastEvaluatedAt: nowIso };
     if (!state.active && v > rule.threshold) {
       const at = current ? hm(Date.parse(current.time), tz) : "";
+      const src = rule.metric === "aqi" ? (current?.sourceLabels?.[rule.scale] ?? current?.sourceLabel) : "Model (Open-Meteo)";
       return {
         events: [
           {
@@ -253,10 +278,11 @@ export function evaluateRule(
             id: `${rule.id}-${now}`,
             kind: "current",
             value: v,
-            title: `${rule.city.name}: ${label} ${Math.round(v)} (above ${rule.threshold})`,
-            message: `${label} is ${Math.round(v)} in ${rule.city.name}, above your threshold of ${rule.threshold} (current reading, ${at} local time).`,
+            title: `${rule.city.name}: ${label} ${formatIndex(v, rule.scale)} (above ${rule.threshold})`,
+            message: `${label} is ${alertValueText(v, rule.scale)} in ${rule.city.name}, above your threshold of ${rule.threshold} (current reading, ${at} local time${src ? `; source: ${src}` : ""}).`,
             spanStart: null,
             spanEnd: null,
+            ...(src ? { source: src } : {}),
           },
         ],
         state: { ...next, active: true, episodeStartedAt: nowIso },
@@ -282,9 +308,10 @@ export function evaluateRule(
           kind: "forecast",
           value: span.max,
           title: `${rule.city.name}: ${label} forecast above ${rule.threshold}`,
-          message: `Forecast: ${label} above ${rule.threshold} in ${rule.city.name} on ${when} local time (official forecast).`,
+          message: `Forecast: ${label} above ${rule.threshold} in ${rule.city.name} on ${when} local time (official model forecast; it may under-estimate where stations read higher).`,
           spanStart: new Date(span.start).toISOString(),
           spanEnd: new Date(span.end).toISOString(),
+          source: "Model forecast (CAMS via Open-Meteo)",
         },
       ],
       state: { ...next, active: true, episodeStartedAt: nowIso },

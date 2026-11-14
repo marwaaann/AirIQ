@@ -14,11 +14,15 @@ import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
+import { useDataSource } from "@/hooks/useDataSource";
+import { computeHeadline } from "@/hooks/useHeadline";
+import { useNow } from "@/hooks/useNow";
 import { compareCityFromSlug, useCompareCity, type CompareCityData, type CompareCityRef } from "@/hooks/useCompareCity";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useUrlParam } from "@/hooks/useUrlParam";
-import { getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, type PollutantKey } from "@/lib/aqi-categories";
-import { headline } from "@/lib/aqi-display";
+import { formatIndex, getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_SHORT, type PollutantKey } from "@/lib/aqi-categories";
+import { sourceLabel, type HeadlineSource } from "@/lib/headline-source";
+import type { AqiScale } from "@/types/air";
 import { MAX_COMPARE, MIN_COMPARE, compareSummary, parseCitiesParam, rankCleanest, serializeCities } from "@/lib/compare";
 import { errorMessage } from "@/lib/fetcher";
 import { combineStale, staleMetaOf } from "@/lib/stale";
@@ -38,12 +42,12 @@ type Metric = (typeof METRICS)[number];
 const HOUR = 3_600_000;
 const FORECAST_HOURS = 48;
 
-function seriesValue(p: { usAqi: number | null; euAqi: number | null; pollutants: Record<PollutantKey, number | null> }, metric: Metric, scale: "us" | "eu") {
-  return metric === "aqi" ? (scale === "us" ? p.usAqi : p.euAqi) : p.pollutants[metric];
+function seriesValue(p: { usAqi: number | null; euAqi: number | null; inAqi?: number | null; pollutants: Record<PollutantKey, number | null> }, metric: Metric, scale: AqiScale) {
+  return metric === "aqi" ? (scale === "us" ? p.usAqi : scale === "eu" ? p.euAqi : (p.inAqi ?? null)) : p.pollutants[metric];
 }
 
 /** Daily means for one city in its own local days, limited to the selected range. */
-function cityDays(d: CompareCityData, metric: Metric, scale: "us" | "eu", range: number): Map<string, number> | null {
+function cityDays(d: CompareCityData, metric: Metric, scale: AqiScale, range: number): Map<string, number> | null {
   const data = d.history.data;
   if (!data) return null;
   const tz = data.series.timezone;
@@ -57,6 +61,8 @@ function cityDays(d: CompareCityData, metric: Metric, scale: "us" | "eu", range:
 export function CompareView() {
   const params = useSearchParams();
   const [scale] = useAqiScale();
+  const [mode] = useDataSource();
+  const now = useNow(60_000);
   const { favorites } = useFavorites();
   const [rangeParam, setRange] = useUrlParam<RangeParam>("range", RANGES, "7");
   const range = Number(rangeParam) as 7 | 30 | 90;
@@ -99,15 +105,15 @@ export function CompareView() {
   const s3 = useCompareCity(refs[3] ?? null, range);
   const slots = [s0, s1, s2, s3].filter((s) => s.city !== null);
 
-  const unit = metric === "aqi" ? (scale === "us" ? "US AQI" : "EU AQI") : `${POLLUTANT_INFO[metric].short} µg/m³`;
-  const unitName = metric === "aqi" ? (scale === "us" ? "US AQI" : "EU AQI") : `${POLLUTANT_INFO[metric].short} (µg/m³)`;
+  const unit = metric === "aqi" ? SCALE_SHORT[scale] : `${POLLUTANT_INFO[metric].short} µg/m³`;
+  const unitName = metric === "aqi" ? SCALE_SHORT[scale] : `${POLLUTANT_INFO[metric].short} (µg/m³)`;
 
-  const ranking = rankCleanest(
-    slots.map((s) => {
-      const h = s.air.data ? headline(s.air.data.current, scale) : null;
-      return { id: s.city!.slug, name: s.city!.name, value: h?.value ?? null };
-    }),
-  );
+  // The headline in effect per city (station median / nearest station / model), as on the city page.
+  const heads = new Map<string, HeadlineSource>();
+  for (const s of slots) {
+    if (s.air.data) heads.set(s.city!.slug, computeHeadline(s.air.data, s.near.data, s.near.error, scale, mode, now));
+  }
+  const ranking = rankCleanest(slots.map((s) => ({ id: s.city!.slug, name: s.city!.name, value: heads.get(s.city!.slug)?.value ?? null })));
   const rankOf = (slug: string) => {
     const i = ranking.findIndex((r) => r.id === slug);
     return i < 0 ? null : i + 1;
@@ -194,7 +200,15 @@ export function CompareView() {
           {slots.length < MIN_COMPARE ? <p className="text-sm text-muted">Add one more city to compare.</p> : null}
           <div className={`grid gap-4 sm:grid-cols-2 ${slots.length > 2 ? "xl:grid-cols-4" : ""}`}>
             {slots.map((s, slot) => (
-              <CompareCardSlot key={s.city!.slug} d={s} slot={slot} scale={scale} rank={rankOf(s.city!.slug)} onRemove={() => remove(s.city!.slug)} />
+              <CompareCardSlot
+                key={s.city!.slug}
+                d={s}
+                slot={slot}
+                scale={scale}
+                headline={heads.get(s.city!.slug) ?? null}
+                rank={rankOf(s.city!.slug)}
+                onRemove={() => remove(s.city!.slug)}
+              />
             ))}
           </div>
 
@@ -208,8 +222,9 @@ export function CompareView() {
                   <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="w-5 font-mono text-muted">{i + 1}.</span>
                     <span className="font-medium">{r.name}</span>
-                    <span className="font-mono">{r.value}</span>
+                    <span className="font-mono">{formatIndex(r.value, scale)}</span>
                     <CategoryBadge category={getCategory(r.value, scale)} size="sm" />
+                    <span className="text-xs text-muted">{heads.get(r.id) ? sourceLabel(heads.get(r.id)!) : ""}</span>
                   </li>
                 ))}
               </ol>
@@ -227,7 +242,7 @@ export function CompareView() {
                   <label className="flex items-center gap-2 text-sm">
                     <span className="text-muted">Show</span>
                     <select value={metric} onChange={(e) => setMetric(e.target.value as Metric)} className="rounded-lg border border-border bg-surface px-2 py-1 text-sm" data-testid="compare-metric">
-                      <option value="aqi">{scale === "us" ? "US AQI" : "EU AQI"}</option>
+                      <option value="aqi">{SCALE_SHORT[scale]}</option>
                       {POLLUTANT_ORDER.map((p) => (
                         <option key={p} value={p}>
                           {POLLUTANT_INFO[p].short} (µg/m³)
@@ -315,7 +330,21 @@ export function CompareView() {
   );
 }
 
-function CompareCardSlot({ d, slot, scale, rank, onRemove }: { d: CompareCityData; slot: number; scale: "us" | "eu"; rank: number | null; onRemove: () => void }) {
+function CompareCardSlot({
+  d,
+  slot,
+  scale,
+  headline,
+  rank,
+  onRemove,
+}: {
+  d: CompareCityData;
+  slot: number;
+  scale: AqiScale;
+  headline: HeadlineSource | null;
+  rank: number | null;
+  onRemove: () => void;
+}) {
   const colors = useSeriesColors();
-  return <CompareCard d={d} scale={scale} rank={rank} color={colors[slot]} dash={SERIES_DASH[slot]} onRemove={onRemove} />;
+  return <CompareCard d={d} scale={scale} headline={headline} rank={rank} color={colors[slot]} dash={SERIES_DASH[slot]} onRemove={onRemove} />;
 }

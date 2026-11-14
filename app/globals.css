@@ -111,6 +111,14 @@ body {
 .aqi-pattern-solid-stripes {
   background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.35) 0 4px, transparent 4px 8px);
 }
+/* Beyond index (US AQI > 500): white zigzag on deep maroon, distinct from Hazardous stripes. */
+.aqi-pattern-zigzag {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.55) 25%, transparent 25%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -176,6 +184,25 @@ body:has([data-fullbleed]) > footer {
   box-shadow:
     0 0 0 2px var(--text),
     0 2px 5px rgba(0, 0, 0, 0.4);
+}
+/* Station reading beyond the top of the index: thicker ring and a square-ish core so it stands out from Hazardous. */
+.airiq-station.airiq-beyond {
+  width: 46px;
+  height: 46px;
+  box-shadow:
+    0 0 0 3px var(--text),
+    0 0 0 6px var(--surface),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.airiq-station.airiq-beyond .airiq-station-core {
+  width: 36px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.airiq-badge.airiq-beyond {
+  box-shadow:
+    0 0 0 2.5px var(--text),
+    0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .airiq-station-core {
   display: flex;

@@ -5,15 +5,22 @@
  * Pure module (no imports from "@/") so it can run under `node --test`.
  */
 
+/** The three index scales AirIQ shows: US EPA, European (EEA) and India's National AQI (CPCB). */
+export type ScaleKey = "us" | "eu" | "in";
+export const SCALES: readonly ScaleKey[] = ["us", "eu", "in"];
+
 export type UsCategoryKey =
   | "good"
   | "moderate"
   | "usg"
   | "unhealthy"
   | "very-unhealthy"
-  | "hazardous";
+  | "hazardous"
+  | "beyond-index";
 
 export type EuCategoryKey = "good" | "fair" | "moderate" | "poor" | "very-poor" | "extremely-poor";
+
+export type InCategoryKey = "good" | "satisfactory" | "moderately-polluted" | "poor" | "very-poor" | "severe";
 
 export interface AqiCategory<K extends string = string> {
   key: K;
@@ -33,8 +40,12 @@ export interface AqiCategory<K extends string = string> {
   /** Message for sensitive groups. */
   sensitive: string;
   /** Pattern id used as a non-color cue (color-blind safety). */
-  pattern: "none" | "dots" | "lines" | "cross" | "grid" | "solid-stripes";
-  /** 0-based severity rank shared across scales (0 best, 5 worst). */
+  pattern: "none" | "dots" | "lines" | "cross" | "grid" | "solid-stripes" | "zigzag";
+  /**
+   * 0-based severity rank shared across scales (0 best, 5 worst). The US
+   * "Beyond index" band shares rank 5 with Hazardous, so every rule written
+   * for the worst category applies to it too.
+   */
   rank: number;
 }
 
@@ -110,13 +121,29 @@ export const US_CATEGORIES: readonly AqiCategory<UsCategoryKey>[] = [
     key: "hazardous",
     label: "Hazardous",
     min: 301,
-    max: Number.POSITIVE_INFINITY,
+    max: 500,
     color: "#7e0023",
     textColor: "#ffffff",
     verdict: "Emergency conditions. Avoid going outside.",
     health: "Health warning of emergency conditions: everyone is more likely to be affected.",
     sensitive: "Everyone should avoid all outdoor physical activity.",
     pattern: "solid-stripes",
+    rank: 5,
+  },
+  {
+    // Not an EPA category: the EPA index stops at 500. AirIQ keeps the computed
+    // value (linear extension of the top band), shows "500+" and uses this band
+    // so an extreme reading is never drawn as an ordinary Hazardous one.
+    key: "beyond-index",
+    label: "Beyond index",
+    min: 501,
+    max: Number.POSITIVE_INFINITY,
+    color: "#3d000f",
+    textColor: "#ffffff",
+    verdict: "Beyond the top of the index. Stay indoors.",
+    health: "The reading is above the highest value the US AQI defines (500). Health warning of emergency conditions applies to everyone.",
+    sensitive: "Everyone should stay indoors and avoid all physical activity outdoors.",
+    pattern: "zigzag",
     rank: 5,
   },
 ] as const;
@@ -204,6 +231,96 @@ export const EU_CATEGORIES: readonly AqiCategory<EuCategoryKey>[] = [
   },
 ] as const;
 
+/**
+ * India National Air Quality Index (CPCB). Bands and health statements from
+ * CPCB, "National Air Quality Index" (2014), Table 3.12, and CPCB's
+ * "About National Air Quality Index" sheet. The six colours follow CPCB's
+ * green → dark-red legend; the exact hex values are AirIQ's, chosen so the
+ * category text meets WCAG AA contrast.
+ */
+export const IN_CATEGORIES: readonly AqiCategory<InCategoryKey>[] = [
+  {
+    key: "good",
+    label: "Good",
+    min: 0,
+    max: 50,
+    color: "#2fa84f",
+    textColor: "#04210c",
+    verdict: "Good air. Minimal impact.",
+    health: "Minimal impact.",
+    sensitive: "Minimal impact.",
+    pattern: "none",
+    rank: 0,
+  },
+  {
+    key: "satisfactory",
+    label: "Satisfactory",
+    min: 51,
+    max: 100,
+    color: "#a3d65c",
+    textColor: "#1f2e05",
+    verdict: "Satisfactory air. Sensitive people may notice minor discomfort.",
+    health: "May cause minor breathing discomfort to sensitive people.",
+    sensitive: "May cause minor breathing discomfort to sensitive people.",
+    pattern: "dots",
+    rank: 1,
+  },
+  {
+    key: "moderately-polluted",
+    label: "Moderately polluted",
+    min: 101,
+    max: 200,
+    color: "#ffff00",
+    textColor: "#3d3d00",
+    verdict: "Moderately polluted. People with lung or heart disease should take care.",
+    health:
+      "May cause breathing discomfort to the people with lung disease such as asthma and discomfort to people with heart disease, children and older adults.",
+    sensitive: "May cause breathing discomfort to people with lung disease such as asthma, and discomfort to people with heart disease, children and older adults.",
+    pattern: "lines",
+    rank: 2,
+  },
+  {
+    key: "poor",
+    label: "Poor",
+    min: 201,
+    max: 300,
+    color: "#ff9a00",
+    textColor: "#3a1d00",
+    verdict: "Poor air. Limit prolonged time outdoors.",
+    health: "May cause breathing discomfort to people on prolonged exposure and discomfort to people with heart disease with short exposure.",
+    sensitive: "People with heart disease may feel discomfort even with short exposure.",
+    pattern: "cross",
+    rank: 3,
+  },
+  {
+    key: "very-poor",
+    label: "Very poor",
+    min: 301,
+    max: 400,
+    color: "#d7191c",
+    textColor: "#ffffff",
+    verdict: "Very poor air. Stay indoors where possible.",
+    health: "May cause respiratory illness to the people on prolonged exposure. Effect may be more pronounced in people with lung and heart diseases.",
+    sensitive: "Effects may be more pronounced in people with lung and heart diseases.",
+    pattern: "grid",
+    rank: 4,
+  },
+  {
+    key: "severe",
+    label: "Severe",
+    min: 401,
+    max: Number.POSITIVE_INFINITY,
+    color: "#a50f15",
+    textColor: "#ffffff",
+    verdict: "Severe pollution. Stay indoors.",
+    health:
+      "May cause respiratory effects even on healthy people and serious health impacts on people with lung/heart diseases. The health impacts may be experienced even during light physical activity.",
+    sensitive: "Serious health impacts on people with lung or heart diseases, even during light physical activity.",
+    pattern: "solid-stripes",
+    rank: 5,
+  },
+] as const;
+
 export function getUsCategory(aqi: number): AqiCategory<UsCategoryKey> {
   const v = Math.max(0, Math.round(aqi));
   return US_CATEGORIES.find((c) => v >= c.min && v <= c.max) ?? US_CATEGORIES[US_CATEGORIES.length - 1];
@@ -215,12 +332,61 @@ export function getEuCategory(aqi: number): AqiCategory<EuCategoryKey> {
   return EU_CATEGORIES.find((c) => v <= c.max) ?? EU_CATEGORIES[EU_CATEGORIES.length - 1];
 }
 
-export function getCategory(aqi: number, scale: "us" | "eu"): AqiCategory {
-  return scale === "us" ? getUsCategory(aqi) : getEuCategory(aqi);
+export function getInCategory(aqi: number): AqiCategory<InCategoryKey> {
+  const v = Math.max(0, Math.round(aqi));
+  return IN_CATEGORIES.find((c) => v >= c.min && v <= c.max) ?? IN_CATEGORIES[IN_CATEGORIES.length - 1];
 }
 
-/** Max value used to scale gauges for each AQI scale. */
-export const SCALE_MAX: Record<"us" | "eu", number> = { us: 500, eu: 125 };
+/** Every category of a scale, best first (the US list includes "Beyond index"). */
+export function categoriesFor(scale: ScaleKey): readonly AqiCategory[] {
+  return scale === "us" ? US_CATEGORIES : scale === "eu" ? EU_CATEGORIES : IN_CATEGORIES;
+}
+
+/** Categories drawn on a gauge or used for chart bands: the index's own range, without "Beyond index". */
+export function gaugeCategories(scale: ScaleKey): readonly AqiCategory[] {
+  return categoriesFor(scale).filter((c) => c.min <= INDEX_TOP[scale]);
+}
+
+export function getCategory(aqi: number, scale: ScaleKey): AqiCategory {
+  return scale === "us" ? getUsCategory(aqi) : scale === "eu" ? getEuCategory(aqi) : getInCategory(aqi);
+}
+
+/** Max value used to scale gauges and chart bands for each scale. */
+export const SCALE_MAX: Record<ScaleKey, number> = { us: 500, eu: 125, in: 500 };
+
+/**
+ * Highest value each index defines. Above it a reading is "beyond index": the
+ * computed value is kept (for tooltips and logic) but displayed as "500+"
+ * (US AQI, India NAQI) or "100+" (European AQI, whose bands end at 100).
+ */
+export const INDEX_TOP: Record<ScaleKey, number> = { us: 500, eu: 100, in: 500 };
+
+export const SCALE_NAME: Record<ScaleKey, string> = { us: "US AQI", eu: "European AQI", in: "India NAQI" };
+export const SCALE_SHORT: Record<ScaleKey, string> = { us: "US AQI", eu: "EU AQI", in: "NAQI" };
+
+export function isBeyondIndex(value: number | null | undefined, scale: ScaleKey): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value > INDEX_TOP[scale];
+}
+
+/** Text for an index value: "n/a", "231", or "500+" when beyond the index. Never NaN. */
+export function formatIndex(value: number | null | undefined, scale: ScaleKey): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
+  return isBeyondIndex(value, scale) ? `${INDEX_TOP[scale]}+` : String(Math.max(0, Math.round(value)));
+}
+
+/** Plain-language flag for a beyond-index value, e.g. "Severe, beyond index (computed 612)". */
+export function beyondIndexLabel(value: number, scale: ScaleKey): string {
+  const name = scale === "us" ? "Beyond index" : scale === "eu" ? "Extremely poor, beyond index" : "Severe, beyond index";
+  return `${name} (computed ${Math.round(value)})`;
+}
+
+/** Spoken/tooltip form: "US AQI 231" or "US AQI 500+ (Beyond index, computed 648)". */
+export function describeIndex(value: number | null | undefined, scale: ScaleKey): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return `${SCALE_NAME[scale]} not available`;
+  return isBeyondIndex(value, scale)
+    ? `${SCALE_NAME[scale]} ${formatIndex(value, scale)} (${beyondIndexLabel(value, scale)})`
+    : `${SCALE_NAME[scale]} ${Math.round(value)}`;
+}
 
 /* ------------------------------------------------------------------------- */
 /* Pollutant metadata                                                         */

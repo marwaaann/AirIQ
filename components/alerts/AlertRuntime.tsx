@@ -8,6 +8,9 @@ import useSWR from "swr";
 import { AlertIcon } from "@/components/icons";
 import { AIR_REFRESH_MS, airUrl, FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { evaluateCity, useAlertEngine, type CityGroup } from "@/hooks/useAlertEngine";
+import { dataSourceStore } from "@/hooks/useDataSource";
+import { useNearbyStations } from "@/hooks/useHeadline";
+import { useStoredValue } from "@/lib/storage";
 import { showBrowserNotification } from "@/hooks/useNotificationPermission";
 import { apiFetch } from "@/lib/fetcher";
 import { dismissToast, pushToast, useToasts } from "@/lib/toast-store";
@@ -26,12 +29,17 @@ function CityWatcher({ group, tick }: { group: CityGroup; tick: number }) {
     revalidateOnFocus: true,
     keepPreviousData: true,
   });
+  // Stations decide the headline (Auto mode), so wait until the station request has settled.
+  const near = useNearbyStations(group.latitude, group.longitude);
+  const [mode] = useStoredValue(dataSourceStore);
+  const stationsSettled = near.data !== undefined || near.error !== undefined || mode === "model";
   const rulesSig = useMemo(() => JSON.stringify(group.rules), [group.rules]);
 
   useEffect(() => {
     if (!air.data && !forecast.data) return;
+    if (!stationsSettled) return;
     const rules = JSON.parse(rulesSig) as CityGroup["rules"];
-    const events = evaluateCity(rules, air.data, forecast.data, Date.now());
+    const events = evaluateCity(rules, air.data, forecast.data, Date.now(), near.data, near.error, mode);
     for (const ev of events) {
       const href = `/city/${ev.citySlug}`;
       pushToast({
@@ -43,7 +51,7 @@ function CityWatcher({ group, tick }: { group: CityGroup; tick: number }) {
       });
       if (!ev.suppressed) void showBrowserNotification(ev.title, ev.message, ev.id, href, () => router.push(href));
     }
-  }, [air.data, forecast.data, tick, rulesSig, router]);
+  }, [air.data, forecast.data, near.data, near.error, stationsSettled, mode, tick, rulesSig, router]);
 
   return null;
 }

@@ -8,9 +8,14 @@ import { AqiGauge } from "@/components/AqiGauge";
 import { AqiScaleToggle } from "@/components/AqiScaleToggle";
 import { AskAirIQ } from "@/components/assistant/AskAirIQ";
 import { CigaretteEquivalent } from "@/components/CigaretteEquivalent";
+import { DataSourceToggle } from "@/components/DataSourceToggle";
+import { EpisodeBanner } from "@/components/EpisodeBanner";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { HeadlineNotes } from "@/components/HeadlineNotes";
 import { AdviceCard } from "@/components/health/AdviceCard";
+import { useAdvice } from "@/components/health/advice-common";
 import { HealthPanel } from "@/components/health/HealthPanel";
+import { StationsPanel } from "@/components/StationsPanel";
 import { PollutantCard } from "@/components/PollutantCard";
 import { offlineFallback } from "@/components/pwa/OfflineUnavailable";
 import { StaleNotice } from "@/components/StaleNotice";
@@ -18,12 +23,15 @@ import { ShareButton } from "@/components/ShareButton";
 import { SharedViewParams } from "@/components/SharedViewParams";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { useAqiScale } from "@/hooks/useAqiScale";
-import { useActiveCity, useAir } from "@/hooks/useCity";
+import { useActiveCity } from "@/hooks/useCity";
+import { useHeadline } from "@/hooks/useHeadline";
 import { useReverseLabel } from "@/hooks/useGeolocation";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { useProfile } from "@/hooks/useProfile";
-import { POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
+import { formatIndex, getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
+import { placeClock } from "@/lib/format";
+import { headlineSubtitle, sourceLabel } from "@/lib/headline-source";
 import { errorMessage } from "@/lib/fetcher";
 import { staleMetaOf } from "@/lib/stale";
 import { CITY_TABS, RANGES, cityShareUrl, type CityTab, type RangeParam } from "@/lib/share";
@@ -144,7 +152,8 @@ function CrossCheck({ data, scale }: { data: AirResponse; scale: AqiScale }) {
 export function CityDashboard({ place }: { place: CityPlace }) {
   const [scale] = useAqiScale();
   const [, setActiveCity] = useActiveCity();
-  const { data, error, isLoading, isValidating, mutate } = useAir(place.latitude, place.longitude);
+  const { air, near, headline: hs, mode } = useHeadline(place.latitude, place.longitude, scale);
+  const { data, error, isLoading, isValidating, mutate } = air;
   const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
   const [tab, setTab] = useUrlParam<Tab>("tab", TABS, "overview");
   const [profile] = useProfile();
@@ -154,8 +163,8 @@ export function CityDashboard({ place }: { place: CityPlace }) {
   const subtitle = place.labelKind ? label.subtitle : place.subtitle;
   const slug = place.labelKind && resolved ? makeCitySlug(label.name, place.latitude, place.longitude) : place.slug;
   const chatContext = useMemo(
-    () => ({ city: name, lat: place.latitude, lon: place.longitude, profile: profile.id, scale }),
-    [name, place.latitude, place.longitude, profile.id, scale],
+    () => ({ city: name, lat: place.latitude, lon: place.longitude, profile: profile.id, scale, source: mode }),
+    [name, place.latitude, place.longitude, profile.id, scale, mode],
   );
 
   const city: SavedCity = useMemo(
@@ -175,7 +184,13 @@ export function CityDashboard({ place }: { place: CityPlace }) {
     }
   }, [place.labelKind, resolved, slug]);
 
+  // Model view of the reading (dominant pollutant, sub-indices, concentrations).
   const h = data ? headline(data.current, scale) : null;
+  // The headline in effect: station median / nearest station / model, never switched silently.
+  const value = hs?.value ?? null;
+  const category = value !== null ? getCategory(value, scale) : null;
+  const advice = useAdvice(data, scale, hs);
+  const gaugeSubtitle = hs && data ? headlineSubtitle(hs, (iso) => placeClock(iso, data.current.timezone), (v) => formatIndex(v, scale)) : undefined;
   const recentByPollutant = useMemo(() => {
     const pts = data?.recent.points ?? [];
     return Object.fromEntries(POLLUTANT_ORDER.map((p) => [p, pts.map((x) => x.pollutants[p])])) as Record<
@@ -203,7 +218,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
     POLLUTANT_ORDER.every((p) => data.current.pollutants[p] === null);
 
   return (
-    <div className="flex flex-col gap-6" style={accentStyle(h?.category ?? null)}>
+    <div className="flex flex-col gap-6" style={accentStyle(category)}>
       <header className="flex flex-col gap-3 border-b-4 border-accent pb-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="truncate text-3xl font-bold tracking-tight sm:text-4xl">{name}</h1>
@@ -214,15 +229,20 @@ export function CityDashboard({ place }: { place: CityPlace }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AqiScaleToggle />
+          <DataSourceToggle />
           <FavoriteButton city={city} />
           <ShareButton
             title={`Air quality in ${name} · AirIQ`}
-            text={h?.value !== null && h?.value !== undefined && h.category ? `${name}: ${h.scaleLabel} ${h.value} (${h.category.label})` : `Air quality in ${name}`}
-            getUrl={() => cityShareUrl(window.location.origin, { slug, tab, range, scale, profile: profile.id })}
+            text={
+              value !== null && category && hs
+                ? `${name}: ${SCALE_NAME[scale]} ${formatIndex(value, scale)} (${category.label}; ${sourceLabel(hs)})`
+                : `Air quality in ${name}`
+            }
+            getUrl={() => cityShareUrl(window.location.origin, { slug, tab, range, scale, profile: profile.id, source: mode })}
           />
           <Link
             prefetch={false}
-            href={`/city/${slug}/report?${new URLSearchParams({ range, scale, profile: profile.id })}`}
+            href={`/city/${slug}/report?${new URLSearchParams({ range, scale, profile: profile.id, source: mode })}`}
             className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium hover:bg-surface-2"
             data-testid="report-link"
           >
@@ -240,6 +260,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
       </header>
 
       <SharedViewParams />
+      {data && hs ? <EpisodeBanner air={data} scale={scale} headline={hs} advice={advice} /> : null}
       <CityTabs tab={tab} onChange={setTab} />
       {tab === "overview" && data ? (
         <StaleNotice meta={staleMetaOf(data)} timeZone={data.current.timezone} onRetry={() => void mutate()} retrying={isValidating} />
@@ -263,21 +284,38 @@ export function CityDashboard({ place }: { place: CityPlace }) {
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <div className="flex flex-col gap-4">
-            <div className="rounded-3xl border border-border bg-surface p-6">
+            <div className="flex flex-col gap-3 rounded-3xl border border-border bg-surface p-6">
               <AqiGauge
-                value={h?.value ?? null}
-                category={h?.category ?? null}
+                value={value}
+                category={category}
                 scale={scale}
-                time={data.current.time}
+                time={hs?.observedAt ?? data.current.time}
                 timezone={data.current.timezone}
-                onRefresh={() => void mutate()}
+                subtitle={gaugeSubtitle}
+                onRefresh={() => {
+                  void mutate();
+                  void near.mutate();
+                }}
                 refreshing={isValidating}
               />
+              {scale === "in" && value === null ? (
+                <p className="text-center text-sm font-semibold" data-testid="naqi-insufficient">
+                  Not enough data. {data.current.inReason}
+                </p>
+              ) : null}
+              {scale === "in" && value !== null ? (
+                <p className="text-center text-xs text-muted" data-testid="naqi-basis">
+                  NAQI {hs?.source === "station" ? "station-based" : "model-based"}: computed by AirIQ from{" "}
+                  {hs?.source === "station" ? "the station's" : "model"} concentrations following CPCB&rsquo;s method; it may differ from
+                  CPCB&rsquo;s official bulletin.
+                </p>
+              ) : null}
+              {hs ? <HeadlineNotes headline={hs} modelUsAqi={data.current.usAqi} /> : null}
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-sm">
               <dl className="grid grid-cols-2 gap-3">
                 <div>
-                  <dt className="text-xs text-muted">Main pollutant</dt>
+                  <dt className="text-xs text-muted">Main pollutant {hs && hs.source !== "model" ? "(model)" : ""}</dt>
                   <dd className="font-semibold">{h?.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</dd>
                 </div>
                 <div>
@@ -287,7 +325,15 @@ export function CityDashboard({ place }: { place: CityPlace }) {
               </dl>
               <CrossCheck data={data} scale={scale} />
             </div>
-            <AdviceCard air={data} scale={scale} onMore={() => setTab("health")} />
+            <AdviceCard advice={advice} sourceText={hs ? sourceLabel(hs) : null} onMore={() => setTab("health")} />
+            <StationsPanel
+              near={near.data}
+              error={near.error}
+              headline={hs}
+              lat={place.latitude}
+              lon={place.longitude}
+              timeZone={data.current.timezone}
+            />
             <CigaretteEquivalent lat={place.latitude} lon={place.longitude} />
             {error ? (
               <ErrorState compact title="Refresh failed, showing the last successful reading" message={errorMessage(error)} onRetry={() => void mutate()} />
@@ -296,7 +342,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
 
           <section aria-labelledby="pollutants-title" className="flex flex-col gap-3">
             <h2 id="pollutants-title" className="text-lg font-semibold">
-              Pollutants
+              Pollutants <span className="text-sm font-normal text-muted">· model concentrations (Open-Meteo, CAMS)</span>
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {POLLUTANT_ORDER.map((p) => (
@@ -319,7 +365,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
 
       {tab === "forecast" ? (
         <div role="tabpanel" id="panel-forecast" aria-labelledby="tab-forecast">
-          <ForecastPanel lat={place.latitude} lon={place.longitude} scale={scale} />
+          <ForecastPanel lat={place.latitude} lon={place.longitude} scale={scale} headline={hs} />
         </div>
       ) : null}
 
@@ -343,7 +389,7 @@ export function CityDashboard({ place }: { place: CityPlace }) {
       <AskAirIQ
         chatId={`city:${slug}`}
         context={chatContext}
-        contextLabel={`${name} · ${profile.label} profile · ${scale === "us" ? "US AQI" : "European AQI"}`}
+        contextLabel={`${name} · ${profile.label} profile · ${SCALE_NAME[scale]} · data source ${mode}`}
       />
     </div>
   );

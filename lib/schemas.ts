@@ -268,3 +268,43 @@ export const SunResponseSchema = z.object({
     sunset: z.array(z.string().nullable()),
   }),
 });
+
+/* ------------------------------------------------------------------------- */
+/* Phase 9: nearby stations, station detail, OpenAQ hourly concentrations     */
+/* ------------------------------------------------------------------------- */
+
+/** GET /api/stations?lat=&lon=[&radius=] (nearby mode). */
+export const NearbyQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  radius: z.coerce.number().min(1).max(25).default(15),
+});
+
+/** GET /api/station?id=waqi-123 */
+export const StationDetailQuerySchema = z.object({
+  id: z.string().regex(/^waqi-\d{1,9}$/, "id must look like waqi-12345"),
+});
+
+/** WAQI /feed/@uid/ (only the fields AirIQ reads). */
+export const WaqiFeedResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ok"),
+    data: z.object({
+      aqi: z.union([z.number(), z.string()]),
+      idx: z.number(),
+      dominentpol: z.string().optional(),
+      city: z.object({ name: z.string(), geo: z.array(z.number()).optional() }).optional(),
+      time: z.object({ iso: z.string().optional(), s: z.string().optional(), tz: z.string().optional() }).optional(),
+      iaqi: z.record(z.string(), z.object({ v: z.number() })).optional(),
+    }),
+  }),
+  z.object({ status: z.literal("error"), data: z.unknown() }),
+]);
+
+/** OpenAQ v3 /sensors/{id}/hours item. */
+export const OpenAqHourItemSchema = z.object({
+  value: z.number(),
+  period: z.object({ datetimeTo: z.object({ utc: z.string() }) }),
+});
+
+export const OpenAqHoursResponseSchema = z.object({ results: z.array(z.unknown()) });

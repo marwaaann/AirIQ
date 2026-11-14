@@ -2,8 +2,7 @@
 
 // No Recharts import here: views that only need colors stay chart-free.
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
-import { EU_CATEGORIES, US_CATEGORIES } from "@/lib/aqi-categories";
-import type { AqiScale } from "@/types/air";
+export { niceYMax } from "@/lib/chart-scale";
 
 /** Chart colors per theme (SVG attributes can't use CSS variables reliably). */
 export function useChartColors() {
@@ -25,12 +24,4 @@ export const SERIES_DASH = ["", "6 3", "2 3", "10 3 2 3"] as const;
 
 export function useSeriesColors(): readonly string[] {
   return useResolvedTheme() === "dark" ? SERIES_DARK : SERIES_LIGHT;
-}
-
-/** Upper y bound: a little above the data, snapped to the next category boundary. */
-export function niceYMax(maxValue: number, scale: AqiScale): number {
-  const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
-  const target = Math.max(maxValue * 1.08, scale === "us" ? 60 : 30);
-  const edge = cats.find((c) => Number.isFinite(c.max) && c.max >= target);
-  return edge ? edge.max : Math.ceil(target / 50) * 50;
 }

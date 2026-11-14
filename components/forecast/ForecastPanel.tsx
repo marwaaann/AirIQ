@@ -9,7 +9,9 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { staleMetaOf } from "@/lib/stale";
 import { FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
-import { getCategory } from "@/lib/aqi-categories";
+import { formatIndex, getCategory, SCALE_NAME, SCALE_SHORT } from "@/lib/aqi-categories";
+import { pointIndex, pointSubIndices } from "@/lib/aqi-display";
+import type { HeadlineSource } from "@/lib/headline-source";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { agreement, cleanestWindows, dailyRanges } from "@/lib/forecast-insights";
 import { formatInZone, formatLocalDate } from "@/lib/format";
@@ -39,7 +41,7 @@ function biasNote(m: OkModel): string | null {
 
 const fmtM = (x: MetricsPayload) => `${x.mae.toFixed(1)} / ${x.rmse.toFixed(1)}`;
 
-export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: number; scale: AqiScale }) {
+export default function ForecastPanel({ lat, lon, scale, headline = null }: { lat: number; lon: number; scale: AqiScale; headline?: HeadlineSource | null }) {
   const { data, error, isLoading, isValidating, mutate } = useSWR<ForecastResponse, Error>(
     forecastUrl(lat, lon),
     apiFetch,
@@ -53,14 +55,18 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
     const off = data.official.points.map((p) => ({
       time: p.time,
       t: Date.parse(p.time),
-      value: scale === "us" ? p.usAqi : p.euAqi,
-      pm25Sub: (scale === "us" ? p.usSubIndices : p.euSubIndices)?.pm2_5 ?? null,
+      value: pointIndex(p, scale),
+      pm25Sub: pointSubIndices(p, scale)?.pm2_5 ?? null,
     }));
     const model = data.model.status === "ok" ? data.model : null;
     const modelByT = new Map(
       (model?.points ?? []).map((p) => [
         Date.parse(p.time),
-        scale === "us" ? { v: p.us, lo: p.usLo, hi: p.usHi } : { v: p.eu, lo: p.euLo, hi: p.euHi },
+        scale === "us"
+          ? { v: p.us, lo: p.usLo, hi: p.usHi }
+          : scale === "eu"
+            ? { v: p.eu, lo: p.euLo, hi: p.euHi }
+            : { v: p.in ?? null, lo: p.inLo ?? null, hi: p.inHi ?? null },
       ]),
     );
     const rows: ForecastRow[] = off.map((o) => {
@@ -93,18 +99,29 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
     const valid = off.filter((o) => o.value !== null);
     const peak = valid.reduce<(typeof valid)[number] | null>((a, b) => (!a || (b.value ?? 0) > (a.value ?? 0) ? b : a), null);
     const summary = valid.length
-      ? `Official ${scale === "us" ? "US" : "European"} AQI forecast for the next ${Math.round((off[off.length - 1].t - nowMs) / 3600_000)} hours: from ${Math.min(...valid.map((v) => v.value!))} to ${Math.max(...valid.map((v) => v.value!))}, highest around ${formatInZone(peak!.t, tz, { weekday: "long", hour: "2-digit", minute: "2-digit" })} local time.${model ? " The AirIQ trend model covers the first 48 hours for PM2.5." : ""}`
+      ? `Official model-based ${SCALE_NAME[scale]} forecast for the next ${Math.round((off[off.length - 1].t - nowMs) / 3600_000)} hours: from ${Math.min(...valid.map((v) => v.value!))} to ${Math.max(...valid.map((v) => v.value!))}, highest around ${formatInZone(peak!.t, tz, { weekday: "long", hour: "2-digit", minute: "2-digit" })} local time.${model ? " The AirIQ trend model covers the first 48 hours for PM2.5." : ""}`
       : "No forecast values available.";
     return { tz, nowMs, rows, agree, windows, daily, model, summary, hasValues: valid.length > 0 };
   }, [data, scale]);
 
-  const unit = scale === "us" ? "US AQI" : "EU AQI";
+  const unit = SCALE_SHORT[scale];
+  const underEstimate = headline?.divergence != null && headline.divergence > 0.25 ? Math.round(headline.divergence * 100) : null;
 
   return (
     <section aria-labelledby="forecast-title" className="flex flex-col gap-5">
       <h2 id="forecast-title" className="text-lg font-semibold">
-        Forecast
+        Forecast <span className="text-sm font-normal text-muted">· model-based (CAMS via Open-Meteo)</span>
       </h2>
+      <p className="text-xs text-muted" data-testid="forecast-model-note">
+        The forecast comes from the CAMS model, which estimates a ~10–40 km grid cell and smooths out local pollution.
+        {scale === "in" ? " NAQI values are computed by AirIQ from the forecast concentrations (24-h / 8-h means)." : ""}
+      </p>
+      {underEstimate !== null ? (
+        <p role="note" className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" data-testid="forecast-underestimate">
+          Nearby ground stations currently read <strong>{underEstimate}% higher</strong> than the model (US AQI), so this forecast likely
+          under-estimates the air you will breathe.
+        </p>
+      ) : null}
 
       {error && !data ? (
         <ErrorState title="Couldn't load the forecast" message={errorMessage(error)} onRetry={() => void mutate()} retrying={isValidating} />
@@ -142,9 +159,9 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
                 <li key={d.date} className="relative flex flex-col gap-1 overflow-hidden rounded-2xl border border-border bg-surface p-3">
                   <span aria-hidden className={`absolute inset-x-0 top-0 h-1.5 aqi-pattern-${cat.pattern}`} style={{ backgroundColor: cat.color }} />
                   <p className="pt-1 text-sm font-semibold">{formatLocalDate(d.date)}</p>
-                  <p className="font-mono text-2xl font-bold">{Math.round(d.mean)}</p>
+                  <p className="font-mono text-2xl font-bold">{formatIndex(d.mean, scale)}</p>
                   <p className="text-xs text-muted">
-                    min {Math.round(d.min)} · max {Math.round(d.max)}
+                    min {formatIndex(d.min, scale)} · max {formatIndex(d.max, scale)}
                     {d.n < 24 ? ` · ${d.n} h` : ""}
                   </p>
                   <CategoryBadge category={cat} size="sm" />
@@ -168,7 +185,7 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
                           {formatInZone(Date.parse(w.end) + 3600_000, view.tz, { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <span className="text-muted">
-                          {unit} {w.min}–{w.max} ({cat.label} at worst)
+                          {unit} {formatIndex(w.min, scale)}–{formatIndex(w.max, scale)} ({cat.label} at worst)
                         </span>
                       </li>
                     );
@@ -184,7 +201,7 @@ export default function ForecastPanel({ lat, lon, scale }: { lat: number; lon: n
                 </p>
               ) : null}
               <p className="text-xs text-muted">
-                The 3 cleanest 3-hour windows in the official forecast. Personal health advice arrives in Phase 5.
+                The 3 cleanest 3-hour windows in the official model forecast. Personal safe times are on the Health tab.
               </p>
             </div>
 

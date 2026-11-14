@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import useSWR from "swr";
 
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { getCategory, getUsCategory, POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
-import { formatConcentration, timeAgo } from "@/lib/format";
-import { cellDominant } from "@/lib/map-layers";
+import { beyondIndexLabel, formatIndex, getCategory, getUsCategory, isBeyondIndex, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME } from "@/lib/aqi-categories";
+import { apiFetch } from "@/lib/fetcher";
+import { formatConcentration, formatPlaceTime, timeAgo } from "@/lib/format";
+import { cellDominant, cellIndex } from "@/lib/map-layers";
 import { formatCoords, makeCitySlug, MAP_POINT_SLUG_NAME } from "@/lib/slug";
 import type { AqiScale, GridCell, Station } from "@/types/air";
+import type { StationDetailResponse } from "@/types/api";
 
 const SOURCE_LABEL = { waqi: "WAQI (aqicn.org)", openaq: "OpenAQ" } as const;
 
 export function GridPopup({ cell, scale }: { cell: GridCell; scale: AqiScale }) {
-  const aqi = scale === "us" ? cell.usAqi : cell.euAqi;
+  const aqi = cellIndex(cell, scale);
   const category = aqi === null ? null : getCategory(aqi, scale);
   const dominant = cellDominant(cell, scale);
   const slug = makeCitySlug(MAP_POINT_SLUG_NAME, cell.latitude, cell.longitude);
@@ -23,10 +26,14 @@ export function GridPopup({ cell, scale }: { cell: GridCell; scale: AqiScale }) 
         <p className="text-xs text-muted">Open-Meteo (CAMS) model grid point</p>
       </div>
       <div className="flex items-center gap-2">
-        <span className="font-mono text-2xl font-bold">{aqi !== null ? Math.round(aqi) : "n/a"}</span>
-        <span className="text-xs text-muted">{scale === "us" ? "US AQI" : "European AQI"}</span>
+        <span className="font-mono text-2xl font-bold">{formatIndex(aqi, scale)}</span>
+        <span className="text-xs text-muted">{SCALE_NAME[scale]}</span>
         {category ? <CategoryBadge category={category} size="sm" /> : null}
       </div>
+      {aqi !== null && isBeyondIndex(aqi, scale) ? <p className="text-xs font-bold">{beyondIndexLabel(aqi, scale)}</p> : null}
+      {scale === "in" ? (
+        <p className="text-xs text-muted">{aqi === null ? "Not enough data for NAQI. " : ""}NAQI computed by AirIQ from the model&rsquo;s last 24 h of concentrations.</p>
+      ) : null}
       <p className="text-xs">
         Main pollutant: <strong>{dominant ? POLLUTANT_INFO[dominant].short : "n/a"}</strong>
       </p>
@@ -55,11 +62,42 @@ export function GridPopup({ cell, scale }: { cell: GridCell; scale: AqiScale }) 
   );
 }
 
-export function StationPopup({ station }: { station: Station }) {
+/** Dominant pollutant and observation time from the station's own feed (WAQI only, loaded when the popup opens). */
+function StationDetail({ station }: { station: Station }) {
+  const { data, error } = useSWR<StationDetailResponse, Error>(station.source === "waqi" ? `/api/station?id=${station.id}` : null, apiFetch, {
+    revalidateOnFocus: false,
+  });
+  if (station.source !== "waqi") {
+    return (
+      <p className="text-xs">
+        Main pollutant: <strong>{station.dominant ? POLLUTANT_INFO[station.dominant].short : "not reported by this feed"}</strong>
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs" data-testid="station-dominant">
+      Main pollutant:{" "}
+      <strong>{data ? (data.dominant ? POLLUTANT_INFO[data.dominant].short : "not reported by this station") : error ? "unavailable" : "loading…"}</strong>
+    </p>
+  );
+}
+
+export function StationPopup({
+  station,
+  model,
+  timeZone,
+  fresh,
+}: {
+  station: Station;
+  model: { value: number; distanceKm: number } | null;
+  timeZone: string;
+  /** Observed within the last 3 hours (computed by the parent). */
+  fresh: boolean;
+}) {
   const category = getUsCategory(station.aqi);
   const slug = makeCitySlug(station.name, station.latitude, station.longitude);
   return (
-    <div className="flex w-60 flex-col gap-2 text-sm">
+    <div className="flex w-64 flex-col gap-2 text-sm">
       <div>
         <p className="font-semibold">{station.name}</p>
         <p className="text-xs text-muted">
@@ -67,28 +105,35 @@ export function StationPopup({ station }: { station: Station }) {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <span className="font-mono text-2xl font-bold">{station.aqi}</span>
+        <span className="font-mono text-2xl font-bold">{formatIndex(station.aqi, "us")}</span>
         <span className="text-xs text-muted">US AQI</span>
         <CategoryBadge category={category} size="sm" />
       </div>
+      {isBeyondIndex(station.aqi, "us") ? <p className="text-xs font-bold">{beyondIndexLabel(station.aqi, "us")}</p> : null}
       <p className="text-xs text-muted">
         {station.aqiBasis === "reported"
           ? "AQI as reported by the station network."
           : "AQI computed from the latest hourly PM2.5 reading (instantaneous, not a 24-hour average)."}
       </p>
-      <p className="text-xs">
-        Main pollutant: <strong>{station.dominant ? POLLUTANT_INFO[station.dominant].short : "not reported by this feed"}</strong>
-      </p>
+      <StationDetail station={station} />
       {station.pm25 !== null ? (
         <p className="text-xs">
-          PM2.5: <span className="font-mono">{formatConcentration(station.pm25)} µg/m³</span>
+          PM2.5 (measured): <span className="font-mono">{formatConcentration(station.pm25)} µg/m³</span>
         </p>
       ) : (
-        <p className="text-xs text-muted">Per-pollutant values are not included in this feed. Open the dashboard for model data.</p>
+        <p className="text-xs text-muted">This feed gives index values, not concentrations.</p>
       )}
       {station.updatedAt ? (
-        <p className="text-xs text-muted">
-          Updated <time dateTime={station.updatedAt}>{timeAgo(station.updatedAt)}</time>
+        <p className={`text-xs ${fresh ? "text-muted" : "font-medium text-danger"}`}>
+          Observed {formatPlaceTime(station.updatedAt, timeZone)} (<time dateTime={station.updatedAt}>{timeAgo(station.updatedAt)}</time>)
+          {fresh ? "" : " · older than 3 h, not used for headlines"}
+        </p>
+      ) : (
+        <p className="text-xs text-muted">Observation time not given.</p>
+      )}
+      {model ? (
+        <p className="text-xs" data-testid="popup-model-value">
+          Model at this point: <strong>US AQI {formatIndex(model.value, "us")}</strong> (nearest grid point, {model.distanceKm < 1 ? "<1" : Math.round(model.distanceKm)} km)
         </p>
       ) : null}
       <div className="flex flex-col gap-1">

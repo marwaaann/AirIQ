@@ -114,8 +114,15 @@ describe("color ramp", () => {
     assert.deepEqual(rampColor(0, "us"), hexToRgb("#00e400"));
     assert.deepEqual(rampColor(25, "us"), hexToRgb("#00e400"));
     assert.deepEqual(rampColor(125.5, "us"), hexToRgb("#ff7e00"));
-    assert.deepEqual(rampColor(999, "us"), hexToRgb("#7e0023"));
+    assert.deepEqual(rampColor(500, "us"), hexToRgb("#7e0023"));
     assert.deepEqual(rampColor(10, "eu"), hexToRgb("#50f0e6"));
+  });
+  it("gives beyond-index values their own colour, never NaN", () => {
+    assert.deepEqual(rampColor(501, "us"), hexToRgb("#3d000f"));
+    assert.deepEqual(rampColor(999, "us"), hexToRgb("#3d000f"));
+    assert.deepEqual(rampColor(650, "in"), hexToRgb("#a50f15"));
+    assert.deepEqual(rampColor(Number.NaN, "us"), hexToRgb("#00e400"));
+    assert.ok(rampColor(Number.POSITIVE_INFINITY, "us").every(Number.isFinite));
   });
   it("interpolates between neighbouring categories", () => {
     const c = rampColor(50, "us"); // halfway between green (25) and yellow (75.5)

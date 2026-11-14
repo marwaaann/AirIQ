@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { CategorySwatch } from "@/components/CategoryBadge";
-import { EU_CATEGORIES, getCategory, POLLUTANT_INFO, US_CATEGORIES } from "@/lib/aqi-categories";
+import { categoriesFor, formatIndex, getCategory, POLLUTANT_INFO } from "@/lib/aqi-categories";
 import { formatLocalDate } from "@/lib/format";
 import type { DayStat } from "@/lib/history-stats";
 import { PARTIAL_DAY_MIN_HOURS } from "@/lib/history-stats";
@@ -20,7 +20,7 @@ function describe(cell: Cell, scale: AqiScale): string {
   const s = cell.stat;
   if (!s || s.mean === null) return `${label}: no data`;
   const cat = getCategory(s.mean, scale);
-  return `${label}: average ${Math.round(s.mean)} (${cat.label}), max ${Math.round(s.max ?? 0)}${s.dominant ? `, mainly ${POLLUTANT_INFO[s.dominant].short}` : ""}, ${s.validHours} of 24 hours${s.partial ? ", partial day" : ""}`;
+  return `${label}: average ${formatIndex(s.mean, scale)} (${cat.label}), max ${formatIndex(s.max ?? 0, scale)}${s.dominant ? `, mainly ${POLLUTANT_INFO[s.dominant].short}` : ""}, ${s.validHours} of 24 hours${s.partial ? ", partial day" : ""}`;
 }
 
 /**
@@ -39,7 +39,7 @@ export function CalendarHeatmap({ dates, days, scale }: { dates: readonly string
   const weeks: (Cell | null)[][] = [];
   for (let i = 0; i < padded.length; i += 7) weeks.push(padded.slice(i, i + 7));
   const activeCell = cells.find((c) => c.date === active) ?? null;
-  const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
+  const cats = categoriesFor(scale);
 
   return (
     <div className="flex flex-col gap-3">

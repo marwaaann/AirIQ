@@ -9,8 +9,10 @@ import { ProfileSelector } from "@/components/ProfileSelector";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { staleMetaOf } from "@/lib/stale";
-import { useAir } from "@/hooks/useCity";
+import { useHeadline } from "@/hooks/useHeadline";
 import { useProfile } from "@/hooks/useProfile";
+import { formatIndex, SCALE_NAME } from "@/lib/aqi-categories";
+import { sourceLabel } from "@/lib/headline-source";
 import { errorMessage } from "@/lib/fetcher";
 import type { Recommendation } from "@/lib/health-advice";
 import type { AqiScale } from "@/types/air";
@@ -29,8 +31,9 @@ function RecList({ items }: { items: Recommendation[] }) {
 }
 
 export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: number; scale: AqiScale; alertHref: string | null }) {
-  const { data, error, isLoading, isValidating, mutate } = useAir(lat, lon);
-  const advice = useAdvice(data, scale);
+  const { air, headline } = useHeadline(lat, lon, scale);
+  const { data, error, isLoading, isValidating, mutate } = air;
+  const advice = useAdvice(data, scale, headline);
   const [profile] = useProfile();
 
   return (
@@ -51,7 +54,9 @@ export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: 
       ) : isLoading && !data ? (
         <Skeleton className="h-64 rounded-2xl" label="Loading health advice" />
       ) : !advice ? (
-        <EmptyState title="No index value for this location">Health advice needs a current AQI reading.</EmptyState>
+        <EmptyState title={scale === "in" ? "Not enough data for NAQI" : "No index value for this location"}>
+          {scale === "in" ? (data?.current.inReason ?? "Health advice needs a current NAQI value.") : "Health advice needs a current AQI reading."}
+        </EmptyState>
       ) : (
         <>
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
@@ -61,6 +66,11 @@ export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: 
             </div>
             <p className="text-lg font-semibold">{advice.headline.text}</p>
             <p className="text-xs text-muted">Source: {advice.headline.basis}</p>
+            {headline && headline.value !== null ? (
+              <p className="text-xs text-muted" data-testid="advice-source">
+                For {SCALE_NAME[scale]} {formatIndex(headline.value, scale)} from {sourceLabel(headline)}.
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -107,7 +117,7 @@ export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: 
         </>
       )}
 
-      <WindowFinder lat={lat} lon={lon} scale={scale} />
+      <WindowFinder lat={lat} lon={lon} scale={scale} headline={headline} />
 
       {alertHref ? (
         <p className="text-sm">

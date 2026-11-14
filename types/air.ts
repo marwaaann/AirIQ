@@ -6,7 +6,8 @@
 export const POLLUTANTS = ["pm2_5", "pm10", "nitrogen_dioxide", "sulphur_dioxide", "ozone", "carbon_monoxide"] as const;
 export type Pollutant = (typeof POLLUTANTS)[number];
 
-export type AqiScale = "us" | "eu";
+/** US EPA AQI, European AQI (EEA), or India NAQI (CPCB, computed by AirIQ from concentrations). */
+export type AqiScale = "us" | "eu" | "in";
 
 /** Concentrations in µg/m³ (Open-Meteo native unit, incl. CO). `null` = not reported. */
 export type PollutantValues = Record<Pollutant, number | null>;
@@ -42,6 +43,16 @@ export interface AirQuality {
   /** Pollutant with the highest sub-index on each scale. */
   dominantUs: Pollutant | null;
   dominantEu: Pollutant | null;
+  /**
+   * India NAQI computed by AirIQ from the model's hourly concentrations (24-h
+   * PM/NO₂/SO₂ means, 8-h CO/O₃ means, CPCB minimum-data rules). Null when
+   * there is not enough data. May exceed 500 (beyond index).
+   */
+  inAqi: number | null;
+  inSubIndices: SubIndexValues;
+  dominantIn: Pollutant | null;
+  /** Why NAQI could not be computed (null when it was). */
+  inReason: string | null;
 }
 
 export interface HourlyPoint {
@@ -53,6 +64,9 @@ export interface HourlyPoint {
   /** Hourly source sub-indices (present on history/forecast series). */
   usSubIndices?: SubIndexValues;
   euSubIndices?: SubIndexValues;
+  /** India NAQI computed by AirIQ from the series' concentrations (null without 16 h of data). */
+  inAqi?: number | null;
+  inSubIndices?: SubIndexValues;
 }
 
 export interface AirSeries {
@@ -95,6 +109,9 @@ export interface GridCell {
   /** Source sub-indices per pollutant (EU has no CO). */
   usSubIndices: SubIndexValues;
   euSubIndices: SubIndexValues;
+  /** India NAQI computed by AirIQ from the point's last 24 h of model concentrations. */
+  inAqi: number | null;
+  inSubIndices: SubIndexValues;
 }
 
 export type StationSource = "waqi" | "openaq";

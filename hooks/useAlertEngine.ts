@@ -5,10 +5,12 @@ import { useSWRConfig } from "swr";
 
 import { CHECK_ALERTS_EVENT, eventsStore, ruleStatesStore, rulesStore } from "@/lib/alert-store";
 import { appendEvents, evaluateCityRules, type AlertEvent, type AlertRule, type ReadingSource } from "@/lib/alerts";
+import { sourceLabel, type DataSourceMode } from "@/lib/headline-source";
 import { staleMetaOf } from "@/lib/stale";
 import { useStoredValue } from "@/lib/storage";
 import { airUrl, forecastUrl } from "@/hooks/useCity";
-import type { AirResponse, ForecastResponse } from "@/types/api";
+import { computeHeadline, nearbyStationsUrl } from "@/hooks/useHeadline";
+import type { AirResponse, ForecastResponse, NearbyStationsResponse } from "@/types/api";
 
 export const ALERT_RECHECK_MS = 10 * 60 * 1000;
 
@@ -52,6 +54,7 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
     const onCheck = () => {
       for (const c of cities) {
         void mutate(airUrl(c.latitude, c.longitude));
+        void mutate(nearbyStationsUrl(c.latitude, c.longitude));
         if (c.needsForecast) void mutate(forecastUrl(c.latitude, c.longitude));
       }
       bump();
@@ -69,6 +72,29 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
 }
 
 /**
+ * The reading a "current" rule is checked against: the headline in effect on
+ * each scale (station median / nearest station / model, under the user's
+ * data-source setting). Station data older than 3 hours is ignored by the
+ * headline selection, so a stale feed falls back to the model; the label of
+ * whichever source was used is recorded on the event.
+ */
+export function readingFor(air: AirResponse, near: NearbyStationsResponse | undefined, nearError: unknown, mode: DataSourceMode, now: number): ReadingSource {
+  const us = computeHeadline(air, near, nearError, "us", mode, now);
+  const inn = computeHeadline(air, near, nearError, "in", mode, now);
+  const eu = computeHeadline(air, near, nearError, "eu", mode, now);
+  return {
+    time: us.observedAt ?? air.current.time,
+    usAqi: us.value,
+    euAqi: eu.value,
+    inAqi: inn.value,
+    usSubIndices: air.current.usSubIndices,
+    euSubIndices: air.current.euSubIndices,
+    inSubIndices: air.current.inSubIndices,
+    sourceLabels: { us: sourceLabel(us), eu: sourceLabel(eu), in: sourceLabel(inn) },
+  };
+}
+
+/**
  * Evaluate a city's rules against its latest data. State is read and written
  * through the store's functional update, so repeated or concurrent runs never
  * fire the same episode twice. Returns the NEW events only.
@@ -76,18 +102,18 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
  * Data served from the service worker's offline cache is never evaluated:
  * nothing fires and nothing is recorded until fresh data arrives.
  */
-export function evaluateCity(rules: readonly AlertRule[], air: AirResponse | undefined, forecast: ForecastResponse | undefined, now: number): AlertEvent[] {
+export function evaluateCity(
+  rules: readonly AlertRule[],
+  air: AirResponse | undefined,
+  forecast: ForecastResponse | undefined,
+  now: number,
+  near?: NearbyStationsResponse,
+  nearError?: unknown,
+  mode: DataSourceMode = "auto",
+): AlertEvent[] {
   const stale = staleMetaOf(air).isStale || staleMetaOf(forecast).isStale;
   if (stale) return [];
-  const current: ReadingSource | null = air
-    ? {
-        time: air.current.time,
-        usAqi: air.current.usAqi,
-        euAqi: air.current.euAqi,
-        usSubIndices: air.current.usSubIndices,
-        euSubIndices: air.current.euSubIndices,
-      }
-    : null;
+  const current: ReadingSource | null = air ? readingFor(air, near, nearError, mode, now) : null;
   const points = forecast?.official.points ?? null;
   let fresh: AlertEvent[] = [];
   ruleStatesStore.set((prev) => {

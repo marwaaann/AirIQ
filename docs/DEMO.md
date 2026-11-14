@@ -52,6 +52,20 @@ London is a second ambiguous example: the search shows London, England first and
 
 **3:00 Close** with the **About** link in the footer: sources, licences, methods and limitations.
 
+## Delhi episode flow (about 90 seconds, Phase 9)
+
+Use this when Delhi is Very Unhealthy (numbers below from 14 Nov 2026, 22:00 IST).
+
+1. Open `/city/delhi-28.61-77.21`. *Point at* the **Pollution episode** banner: "The headline is Very Unhealthy, so AirIQ shows the most important actions from the health rules, with their sources."
+2. *Point at* the gauge subtitle: "Median of 18 stations within 15 km · highest 400 at … · latest 22:00 IST". *Say:* "Where ground stations exist, the headline is the median of fresh stations, not the model."
+3. *Point at* the grey note: "Stations and the model differ by 40% (US AQI 248 vs 177)". *Say:* "The model averages a 10–40 km cell and smooths out local pollution; stations measure the air at one spot. We show both, never switch silently."
+4. Change **Data source** to **Model only** (the gauge says "Model estimate: 177" and the banner stays, because the stations still read 201+), then back to **Auto**.
+5. Click **NAQI**: "India's National AQI, computed by AirIQ from concentrations using CPCB's method; it can differ from CPCB's bulletin. The stations publish a US AQI, so we never convert it."
+6. Scroll to **Stations near you**, click **AQI** to sort highest first, then **Show on map →**. On the map, switch the heatmap between **Blended**, **Stations only** and **Model only** and read the legend line that says which source drives which part. Click a station: dominant pollutant, observation time and age, and the model value at that point.
+7. Optional: open `/about#headline` and the section **Why AirIQ, Google and other apps can show different numbers**.
+
+If no station is above 500 on the day (none was on 14 Nov 2026), say so: values above 500 are shown as "500+" with the computed number, and this was tested with injected data.
+
 ## If an API is slow or rate-limited
 
 - **Open-Meteo slow or failing:** each panel shows its own error with **Retry**; nothing is filled in. Server responses are cached for 10–30 minutes, so cities you warmed up beforehand keep working.
@@ -66,6 +80,7 @@ London is a second ambiguous example: the search shows London, England first and
 - [ ] Gemini quota left: ask one question in `/assistant` about 15 minutes before. If it says the limit is reached, set `GEMINI_MODEL=gemini-3.5-flash-lite` and restart.
 - [ ] Run the production build (`npm run build && npm start`), not `npm run dev`. It is faster, and the service worker and offline mode only run in production.
 - [ ] Warm the caches: open each demo city once (Delhi, Wellington, Kathmandu), its Forecast and History tabs, `/map` around Delhi, and the compare link above.
+- [ ] For the Delhi episode flow: check that Delhi's gauge subtitle says "Median of N stations" (WAQI reachable) and that Data source is **Auto**.
 - [ ] Check the network: open `/map` and confirm the basemap tiles load (they come from Esri, not our server).
 - [ ] Browser zoom 100%, a clean profile (no other extensions), and notifications allowed if you show alerts.
 - [ ] Close other AirIQ tabs, so alerts don't fire twice during the demo.

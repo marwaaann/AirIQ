@@ -4,7 +4,9 @@
  * orders them. Each row cites its source in `basis`.
  *
  * Levels are the category rank on the ACTIVE scale (0 = Good … 5 = Hazardous
- * on US AQI; 0 = Good … 5 = Extremely poor on the European AQI).
+ * on US AQI; 0 = Good … 5 = Extremely poor on the European AQI; 0 = Good …
+ * 5 = Severe on India's NAQI). The US "Beyond index" band (above 500) has rank
+ * 5, so it always gets the strongest (Hazardous) guidance.
  * "sensitive" means the selected profile is a recognised sensitive group for
  * the current main pollutant (see lib/profiles.ts).
  *
@@ -15,6 +17,10 @@
  *  - EPA Wildfire Smoke Guide for Public Health Officials (2019, rev. 2021) and
  *    EPA "Guide to Air Cleaners in the Home" (indoor air, filtration, masks).
  *  - WHO Global Air Quality Guidelines (2021).
+ *  - CPCB, National Air Quality Index (2014), Table 3.12 health statements
+ *    (NAQI headlines). CPCB gives no activity-level advice, so on the NAQI
+ *    scale AirIQ applies EPA's activity guidance for the category of the same
+ *    severity rank and says so in each row's basis.
  *
  * Pure module (relative imports only).
  */
@@ -25,8 +31,10 @@ export type RuleGroup = "headline" | "activity" | "indoor" | "protection" | "inf
 export type ActivityKind = "walking" | "exercise" | "commuting" | "children";
 export type Audience = "sensitive" | "general";
 
+export type RuleScale = "us" | "eu" | "in";
+
 export interface RuleCondition {
-  scale?: "us" | "eu";
+  scale?: RuleScale;
   /** Exact category ranks this rule applies to. */
   ranks?: readonly number[];
   minRank?: number;
@@ -61,6 +69,9 @@ const EEA = "EEA European Air Quality Index health recommendations";
 const EEA_SENS = "EEA European Air Quality Index recommendations for sensitive populations";
 const EPA_SMOKE = "EPA Wildfire Smoke Guide for Public Health Officials (2019, rev. 2021)";
 const EPA_CLEANERS = "EPA Guide to Air Cleaners in the Home";
+const CPCB = "CPCB National Air Quality Index (2014), Table 3.12 health statements";
+const EPA_ON_NAQI = "EPA AirNow activity guidance, applied by AirIQ to the NAQI category of the same severity (CPCB gives no activity advice)";
+const EPA_ON_NAQI_SENS = "EPA AirNow guidance for sensitive groups, applied by AirIQ to the NAQI category of the same severity";
 
 type Tier = readonly [string, string, string, string, string, string];
 
@@ -111,6 +122,22 @@ const HEADLINES: HealthRule[] = [
     "Poor air quality for you. Consider reducing physical activity, particularly outdoors.",
     "Very poor air quality for you. Reduce physical activity, particularly outdoors.",
     "Extremely poor air quality. Avoid physical activity outdoors.",
+  ]),
+  ...tiers("head-in-general", "headline", { when: { scale: "in", audience: "general" }, basis: CPCB, priority: 0 }, [
+    "Good: minimal impact.",
+    "Satisfactory: may cause minor breathing discomfort to sensitive people.",
+    "Moderately polluted: may cause breathing discomfort to people with lung disease such as asthma, and discomfort to people with heart disease, children and older adults.",
+    "Poor: may cause breathing discomfort on prolonged exposure, and discomfort to people with heart disease even with short exposure.",
+    "Very poor: may cause respiratory illness on prolonged exposure; effects may be more pronounced in people with lung and heart diseases.",
+    "Severe: may cause respiratory effects even in healthy people, and serious health impacts in people with lung or heart disease, even during light physical activity.",
+  ]),
+  ...tiers("head-in-sensitive", "headline", { when: { scale: "in", audience: "sensitive" }, basis: CPCB, priority: 0 }, [
+    "Good: minimal impact.",
+    "Satisfactory: may cause minor breathing discomfort to sensitive people like you.",
+    "Moderately polluted: may cause breathing discomfort for people with lung disease such as asthma, and discomfort for people with heart disease, children and older adults.",
+    "Poor: may cause breathing discomfort on prolonged exposure; people with heart disease may feel discomfort even with short exposure.",
+    "Very poor: may cause respiratory illness on prolonged exposure, with more pronounced effects for people with lung and heart diseases.",
+    "Severe: serious health impacts for people with lung or heart disease, even during light physical activity.",
   ]),
 ];
 
@@ -271,6 +298,18 @@ const ACTIVITY: HealthRule[] = [
   },
 ];
 
+/**
+ * NAQI activity rows: the US activity rows (walking, exercise, children's
+ * play) re-labelled for the NAQI scale. The basis says that AirIQ maps the
+ * guidance by severity rank, because CPCB publishes no activity advice.
+ */
+const ACTIVITY_IN: HealthRule[] = ACTIVITY.filter((r) => r.when.scale === "us").map((r) => ({
+  ...r,
+  id: r.id.replace("-us", "-in"),
+  when: { ...r.when, scale: "in" },
+  basis: r.basis === EPA_GUIDE ? EPA_ON_NAQI : EPA_ON_NAQI_SENS,
+}));
+
 /* ------------------------------------------------------------------------- */
 /* Indoor air                                                                 */
 /* ------------------------------------------------------------------------- */
@@ -389,4 +428,4 @@ const INFO: HealthRule[] = [
   },
 ];
 
-export const HEALTH_RULES: readonly HealthRule[] = [...HEADLINES, ...ACTIVITY, ...INDOOR, ...PROTECTION, ...INFO];
+export const HEALTH_RULES: readonly HealthRule[] = [...HEADLINES, ...ACTIVITY, ...ACTIVITY_IN, ...INDOOR, ...PROTECTION, ...INFO];

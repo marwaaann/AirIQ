@@ -2,7 +2,7 @@
 
 import { ReferenceArea } from "recharts";
 
-import { EU_CATEGORIES, US_CATEGORIES } from "@/lib/aqi-categories";
+import { categoriesFor } from "@/lib/aqi-categories";
 import type { AqiScale } from "@/types/air";
 
 /**
@@ -10,7 +10,8 @@ import type { AqiScale } from "@/types/air";
  * Kept apart from chart-kit so modules that only need colors never pull in Recharts.
  */
 export function categoryBands(scale: AqiScale, yMax: number, opacity: number) {
-  const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
+  // Includes the US "Beyond index" band, drawn when the axis extends past 500.
+  const cats = categoriesFor(scale);
   return cats
     .filter((c) => c.min < yMax)
     .map((c) => (

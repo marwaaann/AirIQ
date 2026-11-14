@@ -1,4 +1,5 @@
-import type { AirQuality, AirSeries, GeoLocation, GridCell, Station, StationSource, WeatherSeries } from "@/types/air";
+import type { NearbyStation, StationFeedStatus, StationNaqi } from "@/lib/headline-source";
+import type { AirQuality, AirSeries, GeoLocation, GridCell, Pollutant, Station, StationSource, WeatherSeries } from "@/types/air";
 import type { PollutantKey } from "@/lib/aqi-categories";
 
 /** Response bodies of the app's own route handlers (app/api/*). */
@@ -46,6 +47,29 @@ export interface StationsResponse {
   fetchedAt: string;
 }
 
+/** GET /api/stations?lat=&lon=: stations near a point, for the station-first headline. */
+export interface NearbyStationsResponse {
+  status: StationFeedStatus;
+  source: StationSource | "none";
+  /** Nearest first, within `radiusKm`, capped at 40. */
+  stations: NearbyStation[];
+  radiusKm: number;
+  /** India NAQI from a station's own concentrations (OpenAQ), when available. */
+  stationNaqi: StationNaqi | null;
+  note?: string;
+  fetchedAt: string;
+}
+
+/** GET /api/station?id=waqi-123: popup detail for one station. */
+export interface StationDetailResponse {
+  id: string;
+  dominant: Pollutant | null;
+  observedAt: string | null;
+  /** WAQI per-pollutant INDEX values (US-EPA scale), never concentrations. */
+  indexByPollutant: Partial<Record<Pollutant, number>>;
+  fetchedAt: string;
+}
+
 export interface WeatherResponseBody {
   weather: WeatherSeries;
   days: HistoryRange;
@@ -87,6 +111,10 @@ export interface ModelForecastPoint {
   eu: number | null;
   euLo: number | null;
   euHi: number | null;
+  /** India NAQI PM2.5 sub-index of the trailing 24-h mean (observed + predicted). */
+  in: number | null;
+  inLo: number | null;
+  inHi: number | null;
 }
 
 export type ModelPayload =

@@ -9,9 +9,9 @@ import { HEALTH_RULES, type ActivityKind, type HealthRule, type RuleCondition } 
 import { PROFILES, isSensitiveFor, pollutantGroup, type ProfileId } from "./profiles.ts";
 
 export interface AdviceInput {
-  /** Overall index on the active scale. */
+  /** Overall index on the active scale (may be beyond the index: > 500). */
   aqi: number;
-  scale: "us" | "eu";
+  scale: "us" | "eu" | "in";
   /** Main pollutant (from the source's sub-indices). */
   dominant: PollutantKey | null;
   /** Concentrations in µg/m³. */
@@ -61,7 +61,7 @@ export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
 const ACTIVITY_ORDER: readonly ActivityKind[] = ["exercise", "walking", "children", "commuting"];
 
 interface Ctx {
-  scale: "us" | "eu";
+  scale: "us" | "eu" | "in";
   rank: number;
   sensitive: boolean;
   group: ReturnType<typeof pollutantGroup>;
@@ -146,4 +146,15 @@ export function healthAdvice(input: AdviceInput): AdviceResult {
   }
 
   return { category, rank: category.rank, sensitive, headline, activity, indoor, protection, info, why, bases, top };
+}
+
+/**
+ * The single most important action for a pollution episode banner: the
+ * top-priority outdoor-activity recommendation, plus the respirator advice
+ * when particles drive the index. Both are rows from the rules table.
+ */
+export function episodeActions(advice: AdviceResult): Recommendation[] {
+  const exercise = advice.activity.find((g) => g.kind === "exercise")?.items[0] ?? advice.activity[0]?.items[0];
+  const mask = advice.protection.find((r) => r.id.startsWith("mask-particles"));
+  return [exercise, mask].filter((r): r is Recommendation => r !== undefined);
 }

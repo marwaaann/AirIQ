@@ -1,7 +1,7 @@
 "use client";
 
 import type L from "leaflet";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "@/lib/zod";
 
 import { CitySearch } from "@/components/CitySearch";
@@ -15,13 +15,17 @@ import { useAqiScale } from "@/hooks/useAqiScale";
 import { useActiveCity } from "@/hooks/useCity";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useMapData, type Viewport } from "@/hooks/useMapData";
+import { useNow } from "@/hooks/useNow";
 import { REVALIDATE_EVENT } from "@/hooks/useOnline";
 import { combineStale, staleMetaOf } from "@/lib/stale";
-import { isMapLayer, type MapLayer } from "@/lib/map-layers";
+import { blendHeat, HEAT_MODES, type HeatMode } from "@/lib/heat-blend";
+import { isFresh } from "@/lib/headline-source";
+import { isMapLayer, readCell, type MapLayer } from "@/lib/map-layers";
 import { createStoredValue, useStoredValue } from "@/lib/storage";
 
 const heatVisibleStore = createStoredValue<boolean>("airiq:map-heat", z.boolean(), true);
 const heatOpacityStore = createStoredValue<number>("airiq:map-heat-opacity", z.number().min(0.15).max(0.9), 0.55);
+const heatModeStore = createStoredValue<HeatMode>("airiq:map-heat-mode", z.enum(HEAT_MODES), "blended");
 
 const WORLD = { lat: 20, lon: 0, zoom: 2 };
 const CITY_ZOOM = 9;
@@ -64,6 +68,8 @@ export default function MapClient() {
   const [activeCity] = useActiveCity();
   const [heatVisible, setHeatVisible] = useStoredValue(heatVisibleStore);
   const [heatOpacity, setHeatOpacity] = useStoredValue(heatOpacityStore);
+  const [heatMode, setHeatMode] = useStoredValue(heatModeStore);
+  const now = useNow(60_000);
   const geo = useGeolocation();
 
   // Priority: shared URL → last viewed city → (async) granted geolocation → world.
@@ -143,8 +149,20 @@ export default function MapClient() {
     if (c) flyTo(c.latitude, c.longitude);
   }
 
-  const cells = data.grid?.cells ?? [];
+  const cells = useMemo(() => data.grid?.cells ?? [], [data.grid]);
   const modelTime = cells[0]?.time ?? null;
+  const stationList = useMemo(() => data.stations?.stations ?? [], [data.stations]);
+
+  // Heatmap samples: stations, model, or both (Blended), per lib/heat-blend.ts.
+  const blend = useMemo(() => {
+    const grid = cells
+      .map((c) => ({ c, r: readCell(c, layer, scale) }))
+      .filter((x) => x.r.index !== null)
+      .map((x) => ({ lat: x.c.latitude, lon: x.c.longitude, value: x.r.index as number }));
+    const fresh = stationList.filter((s) => isFresh(s.updatedAt, now)).map((s) => ({ lat: s.latitude, lon: s.longitude, value: s.aqi }));
+    return blendHeat({ mode: heatMode, stations: fresh, grid, stationsComparable: layer === "aqi" && scale === "us" });
+  }, [cells, stationList, layer, scale, heatMode, now]);
+  const heatPoints = useMemo(() => blend.samples.map((s) => ({ lat: s.lat, lon: s.lon, value: s.value })), [blend]);
   const showInitialSpinner = data.loading && !data.grid;
 
   return (
@@ -163,7 +181,10 @@ export default function MapClient() {
           scale={scale}
           cells={cells}
           step={data.grid?.step ?? 1}
-          stations={data.stations?.stations ?? []}
+          stations={stationList}
+          now={now}
+          heatPoints={heatPoints}
+          heatScale={scale}
           heatVisible={heatVisible}
           heatOpacity={heatOpacity}
           flyTarget={flyTarget}
@@ -237,7 +258,14 @@ export default function MapClient() {
             {geo.message}
           </p>
         ) : null}
-        <HeatControls visible={heatVisible} onVisible={setHeatVisible} opacity={heatOpacity} onOpacity={setHeatOpacity} />
+        <HeatControls
+          visible={heatVisible}
+          onVisible={setHeatVisible}
+          opacity={heatOpacity}
+          onOpacity={setHeatOpacity}
+          mode={heatMode}
+          onMode={setHeatMode}
+        />
         <MapLegend
           layer={layer}
           scale={scale}
@@ -245,6 +273,7 @@ export default function MapClient() {
           stationsError={data.stationsError}
           modelTime={modelTime}
           fetchedAt={data.grid?.fetchedAt ?? null}
+          heatNote={heatVisible ? blend.note : null}
         />
       </ControlsPanel>
     </div>

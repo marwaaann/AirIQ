@@ -6,16 +6,16 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { parseSharedPrefs, type SharedPrefs } from "@/lib/share";
 
 export interface ViewOverride {
-  /** ?scale= / ?profile= from the URL (null when absent or invalid). */
+  /** ?scale= / ?profile= / ?source= from the URL (null when absent or invalid). */
   override: SharedPrefs;
   /** Remove these parameters from the address bar (the view falls back to saved settings). */
-  clear: (which: ReadonlyArray<"scale" | "profile">) => void;
+  clear: (which: ReadonlyArray<"scale" | "profile" | "source">) => void;
 }
 
 const ViewOverrideContext = createContext<ViewOverride | null>(null);
 
 /**
- * Makes ?scale= and ?profile= override the saved settings for the pages
+ * Makes ?scale=, ?profile= and ?source= override the saved settings for the pages
  * inside it, without writing them anywhere. The values live in the URL, so a
  * reload keeps the shared view and a Share link reproduces it.
  */
@@ -23,8 +23,12 @@ export function ViewOverrideProvider({ children }: { children: ReactNode }) {
   const params = useSearchParams();
   const scale = params.get("scale");
   const profile = params.get("profile");
-  const override = useMemo(() => parseSharedPrefs(new URLSearchParams({ ...(scale ? { scale } : {}), ...(profile ? { profile } : {}) })), [scale, profile]);
-  const clear = useCallback((which: ReadonlyArray<"scale" | "profile">) => {
+  const source = params.get("source");
+  const override = useMemo(
+    () => parseSharedPrefs(new URLSearchParams({ ...(scale ? { scale } : {}), ...(profile ? { profile } : {}), ...(source ? { source } : {}) })),
+    [scale, profile, source],
+  );
+  const clear = useCallback((which: ReadonlyArray<"scale" | "profile" | "source">) => {
     const next = new URLSearchParams(window.location.search);
     for (const k of which) next.delete(k);
     const qs = next.toString();

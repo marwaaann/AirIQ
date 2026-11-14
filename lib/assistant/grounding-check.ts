@@ -92,12 +92,13 @@ export function collectNumbers(results: readonly unknown[]): FoundNumber[] {
 
 /**
  * Fields that hold index values (AQI, sub-indices, daily means/max/min,
- * thresholds) plus the history insight sentences. An AQI claim must match one
+ * thresholds, station median/highest/nearest, NAQI, the headline and the
+ * model value) plus the history insight sentences. An AQI claim must match one
  * of these, so a coincidental concentration, coordinate or ratio elsewhere in
  * the results can't "support" it (e.g. a prompt-injected "AQI is 10").
  */
-const INDEX_PATH = /aqi|mean|max|min|average|threshold|insights/i;
-const NOT_INDEX_PATH = /\.(?:lat|lon|population|whoGuideline|hours\w*)$|pollutants/i;
+const INDEX_PATH = /aqi|mean|max|min|average|threshold|insights|median|highest|nearest|naqi|headline|modelValue|display/i;
+const NOT_INDEX_PATH = /\.(?:lat|lon|population|whoGuideline|hours\w*|distanceKm|freshStationsWithin15km|stationCount|stationVsModelPercent|rank)$|pollutants/i;
 
 function candidatesFor(claim: Claim, numbers: readonly FoundNumber[]): number[] {
   if (claim.kind === "measure") return numbers.map((n) => n.value);

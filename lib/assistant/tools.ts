@@ -10,7 +10,8 @@
 
 import { z } from "../zod.ts";
 
-import { POLLUTANT_INFO, POLLUTANT_ORDER, getCategory, type PollutantKey } from "../aqi-categories.ts";
+import { POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME, formatIndex, getCategory, isBeyondIndex, type PollutantKey, type ScaleKey } from "../aqi-categories.ts";
+import { DATA_SOURCE_MODES, selectHeadline, shortName, sourceLabel, type DataSourceMode, type HeadlineSource } from "../headline-source.ts";
 import { dailyRanges } from "../forecast-insights.ts";
 import { healthAdvice } from "../health-advice.ts";
 import {
@@ -28,7 +29,7 @@ import { findSafeWindows } from "../safe-windows.ts";
 import { slugifyName } from "../slug.ts";
 import { datesEnding, formatHour, localParts } from "../time.ts";
 import type { AirSeries, GeoLocation } from "../../types/air.ts";
-import type { AirResponse } from "../../types/api.ts";
+import type { AirResponse, NearbyStationsResponse } from "../../types/api.ts";
 
 export const SOURCE = "Open-Meteo / CAMS";
 
@@ -38,6 +39,8 @@ export interface AssistantDataLayer {
   currentAir(lat: number, lon: number): Promise<AirResponse>;
   airSeries(lat: number, lon: number, pastDays: number, forecastDays: number): Promise<AirSeries>;
   sunTimes(lat: number, lon: number): Promise<{ sunrise: string; sunset: string }[] | null>;
+  /** Ground stations within 15 km (WAQI/OpenAQ); status "error"/"not-configured" when unavailable. */
+  nearbyStations(lat: number, lon: number): Promise<NearbyStationsResponse>;
   now(): number;
 }
 
@@ -88,19 +91,75 @@ const coordsLabel = (lat: number, lon: number) => `${Math.abs(lat).toFixed(2)}°
 const label = (city: string | undefined, lat: number, lon: number) =>
   city ? city.replace(/[\u0000-\u001f<>]/g, "").slice(0, 60) : coordsLabel(lat, lon);
 
+/** Value on a scale for a point; NAQI is AirIQ's computation from model concentrations. */
+const pointValue = (p: { usAqi: number | null; euAqi: number | null; inAqi?: number | null }, scale: ScaleKey) =>
+  scale === "us" ? p.usAqi : scale === "eu" ? p.euAqi : (p.inAqi ?? null);
+const pointSubs = (p: { usSubIndices?: Partial<Record<string, number>>; euSubIndices?: Partial<Record<string, number>>; inSubIndices?: Partial<Record<string, number>> }, scale: ScaleKey) =>
+  scale === "us" ? p.usSubIndices : scale === "eu" ? p.euSubIndices : p.inSubIndices;
+
+/** "231", or "500+" with beyondIndex=true and the computed value. */
+function indexValue(v: number | null, scale: ScaleKey) {
+  if (v === null) return { value: null, display: "n/a", category: null, beyondIndex: false };
+  return { value: Math.round(v), display: formatIndex(v, scale), category: getCategory(v, scale).label, beyondIndex: isBeyondIndex(v, scale) };
+}
+
+interface HeadlineBundle {
+  air: AirResponse;
+  near: NearbyStationsResponse | null;
+  h: HeadlineSource;
+}
+
+/** The same headline the city page shows: station-first on the US AQI, model on EU, NAQI from concentrations. */
+async function headlineFor(d: AssistantDataLayer, lat: number, lon: number, scale: ScaleKey, mode: DataSourceMode): Promise<HeadlineBundle> {
+  const [air, near] = await Promise.all([d.currentAir(lat, lon), d.nearbyStations(lat, lon).catch(() => null)]);
+  const c = air.current;
+  const h = selectHeadline({
+    scale,
+    mode,
+    now: d.now(),
+    model: { value: pointValue(c, scale), usAqi: c.usAqi, time: c.time },
+    stations: near?.stations ?? [],
+    stationStatus: near ? near.status : "error",
+    stationNaqi: near?.stationNaqi ?? null,
+  });
+  return { air, near, h };
+}
+
+/** Station summary for the model: count, median, highest, nearest (US AQI as reported), and the gap to the model. */
+function stationBlock(h: HeadlineSource, timeZone: string) {
+  const s = h.summary;
+  const st = (r: NonNullable<typeof s.highest>) => ({
+    name: shortName(r.name),
+    aqi: r.value,
+    display: formatIndex(r.value, "us"),
+    distanceKm: Math.round(r.distanceKm * 10) / 10,
+    observedLocal: r.observedAt ? localStamp(r.observedAt, timeZone) : null,
+  });
+  return {
+    scale: "US AQI (as reported by the station network)",
+    freshStationsWithin15km: s.freshCount,
+    medianAqi: s.median,
+    highest: s.highest ? st(s.highest) : null,
+    nearest: s.nearest ? st(s.nearest) : null,
+    stationVsModelPercent: h.divergence === null ? null : Math.round(h.divergence * 100),
+    note: h.stationNote,
+  };
+}
+
 /* ------------------------------------------------------------------------- */
 /* Argument schemas                                                           */
 /* ------------------------------------------------------------------------- */
 
 const lat = z.number().min(-90).max(90);
 const lon = z.number().min(-180).max(180);
-const scale = z.enum(["us", "eu"]).default("us");
+const scale = z.enum(["us", "eu", "in"]).default("us");
+const source = z.enum(DATA_SOURCE_MODES).default("auto");
 const cityLabel = z.string().max(120).optional();
 const profile = z.enum(PROFILE_IDS).default("general");
 
 export const ARG_SCHEMAS = {
   resolve_city: z.object({ query: z.string().trim().min(2).max(100) }),
-  get_current_aqi: z.object({ lat, lon, city: cityLabel }),
+  get_current_aqi: z.object({ lat, lon, city: cityLabel, source }),
   get_history: z.object({
     lat,
     lon,
@@ -111,8 +170,9 @@ export const ARG_SCHEMAS = {
   get_forecast: z.object({ lat, lon, scale, city: cityLabel }),
   compare_cities: z.object({
     cities: z.array(z.object({ name: z.string().min(1).max(120), lat, lon })).min(2).max(4),
+    source,
   }),
-  get_health_advice: z.object({ lat, lon, profile, scale, city: cityLabel }),
+  get_health_advice: z.object({ lat, lon, profile, scale, city: cityLabel, source }),
   find_safe_windows: z.object({
     lat,
     lon,
@@ -122,6 +182,7 @@ export const ARG_SCHEMAS = {
     scale,
     daylightOnly: z.boolean().default(false),
     city: cityLabel,
+    source,
   }),
 } as const;
 
@@ -137,7 +198,16 @@ const LATLON = {
   lon: { type: "number", description: "Longitude in decimal degrees, from resolve_city or the page context." },
   city: { type: "string", description: "City display name, used only for labels." },
 } as const;
-const SCALE = { type: "string", enum: ["us", "eu"], description: "AQI scale: 'us' (US EPA) or 'eu' (European AQI). Default 'us'." } as const;
+const SCALE = {
+  type: "string",
+  enum: ["us", "eu", "in"],
+  description: "Index scale: 'us' (US EPA AQI), 'eu' (European AQI) or 'in' (India NAQI, computed by AirIQ from concentrations per CPCB). Default 'us'.",
+} as const;
+const SOURCE_ARG = {
+  type: "string",
+  enum: [...DATA_SOURCE_MODES],
+  description: "Data source for the headline: 'auto' (station median/nearest station when available, else model), 'station' or 'model'. Default 'auto'; use the page context's value when given.",
+} as const;
 const PROFILE = {
   type: "string",
   enum: [...PROFILE_IDS],
@@ -158,8 +228,8 @@ export const FUNCTION_DECLARATIONS = [
   {
     name: "get_current_aqi",
     description:
-      "Current air quality at a location: US AQI and European AQI with categories, the main pollutant on each scale, PM2.5/PM10/NO2/SO2/O3/CO in µg/m³ with WHO guideline values, and the data time in the city's local time.",
-    parametersJsonSchema: { type: "object", properties: { ...LATLON }, required: ["lat", "lon"] },
+      "Current air quality at a location. Returns the HEADLINE in effect (station median, nearest station, or model, with its source, observation time and reason), a summary of ground stations within 15 km (count, median, highest, nearest; US AQI as reported), the model's US AQI and European AQI with categories, India NAQI computed by AirIQ from concentrations, the station-vs-model difference, model pollutant concentrations in µg/m³ with WHO guideline values, and local times. Values above the index top are flagged beyondIndex with display '500+'.",
+    parametersJsonSchema: { type: "object", properties: { ...LATLON, source: SOURCE_ARG }, required: ["lat", "lon"] },
   },
   {
     name: "get_history",
@@ -180,7 +250,7 @@ export const FUNCTION_DECLARATIONS = [
   {
     name: "compare_cities",
     description:
-      "Compare the current air quality of 2–4 already-resolved cities. Returns each city's US AQI, category and main pollutant, and European AQI, category and main pollutant, ranked from cleanest to most polluted (by US AQI).",
+      "Compare the current air quality of 2–4 already-resolved cities. Returns each city's headline US AQI with its source (station median, nearest station or model), the model US AQI, European AQI and India NAQI with categories and main pollutants, ranked from cleanest to most polluted by the headline US AQI.",
     parametersJsonSchema: {
       type: "object",
       properties: {
@@ -194,6 +264,7 @@ export const FUNCTION_DECLARATIONS = [
             required: ["name", "lat", "lon"],
           },
         },
+        source: SOURCE_ARG,
       },
       required: ["cities"],
     },
@@ -201,13 +272,13 @@ export const FUNCTION_DECLARATIONS = [
   {
     name: "get_health_advice",
     description:
-      "Rule-based health guidance for the current air quality and a health profile (US EPA AirNow / EEA guidance). Returns a headline and recommendations for outdoor activity, indoor air and protection, each with its source ('basis'), plus why it applies.",
-    parametersJsonSchema: { type: "object", properties: { ...LATLON, profile: PROFILE, scale: SCALE }, required: ["lat", "lon"] },
+      "Rule-based health guidance for the current headline air quality and a health profile (US EPA AirNow, EEA, or CPCB NAQI statements). Uses the same headline as the app (stations first on the US AQI). Returns the index used and its source, a headline and recommendations for outdoor activity, indoor air and protection, each with its source ('basis'), plus why it applies.",
+    parametersJsonSchema: { type: "object", properties: { ...LATLON, profile: PROFILE, scale: SCALE, source: SOURCE_ARG }, required: ["lat", "lon"] },
   },
   {
     name: "find_safe_windows",
     description:
-      "Find times in the next 48 h of the OFFICIAL forecast when AQI stays at or below the profile's threshold, for walking, exercise, or opening windows (cleanest hours). Returns local time windows with AQI ranges, or the least-bad times if none qualify.",
+      "Find times in the next 48 h of the OFFICIAL (model) forecast when AQI stays at or below the profile's threshold, for walking, exercise, or opening windows (cleanest hours). Returns local time windows with AQI ranges, or the least-bad times if none qualify, plus a note when nearby stations currently read much higher than the model (the forecast then likely under-estimates).",
     parametersJsonSchema: {
       type: "object",
       properties: {
@@ -217,6 +288,7 @@ export const FUNCTION_DECLARATIONS = [
         minHours: { type: "integer", enum: [1, 2, 3], description: "Minimum window length in hours. Default 2." },
         scale: SCALE,
         daylightOnly: { type: "boolean", description: "Exercise only: keep daylight hours. Default false." },
+        source: SOURCE_ARG,
       },
       required: ["lat", "lon"],
     },
@@ -302,7 +374,7 @@ async function toolResolveCity(a: z.infer<typeof ARG_SCHEMAS.resolve_city>, d: A
 }
 
 async function toolCurrent(a: z.infer<typeof ARG_SCHEMAS.get_current_aqi>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const air = await d.currentAir(a.lat, a.lon);
+  const { air, h } = await headlineFor(d, a.lat, a.lon, "us", a.source);
   const c = air.current;
   const dt = dataTime(c.time, c.timezone);
   return {
@@ -312,12 +384,40 @@ async function toolCurrent(a: z.infer<typeof ARG_SCHEMAS.get_current_aqi>, d: As
       source: SOURCE,
       timezone: c.timezone,
       dataTime: dt,
-      usAqi: { value: c.usAqi, category: c.usAqi === null ? null : getCategory(c.usAqi, "us").label, mainPollutant: mainName(c.dominantUs) },
-      europeanAqi: { value: c.euAqi, category: c.euAqi === null ? null : getCategory(c.euAqi, "eu").label, mainPollutant: mainName(c.dominantEu) },
+      headline: {
+        scale: "US AQI",
+        source: h.source,
+        sourceLabel: sourceLabel(h),
+        reason: h.reason,
+        aqi: indexValue(h.value, "us"),
+        observedLocal: h.observedAt ? localStamp(h.observedAt, c.timezone) : null,
+      },
+      stations: stationBlock(h, c.timezone),
+      model: {
+        source: "Open-Meteo (CAMS) model grid",
+        usAqi: { ...indexValue(c.usAqi, "us"), mainPollutant: mainName(c.dominantUs) },
+        europeanAqi: { ...indexValue(c.euAqi, "eu"), mainPollutant: mainName(c.dominantEu) },
+      },
+      indiaNaqi: {
+        ...indexValue(c.inAqi, "in"),
+        mainPollutant: mainName(c.dominantIn),
+        basis: "model concentrations (24-h PM/NO2/SO2, 8-h CO/O3 means)",
+        computedBy: "AirIQ, following CPCB's method; may differ from CPCB's official bulletin",
+        note: c.inReason,
+      },
       pollutants: pollutantTable(c.pollutants),
+      pollutantsSource: "Open-Meteo (CAMS) model concentrations",
     },
-    summary: `Fetched current AQI for ${label(a.city, a.lat, a.lon)}, data as of ${dt.local} ${dt.zone}`,
-    keyValues: { "US AQI": c.usAqi, "European AQI": c.euAqi, "main pollutant": mainName(c.dominantUs), "PM2.5 µg/m³": c.pollutants.pm2_5 === null ? null : r1(c.pollutants.pm2_5) },
+    summary: `Fetched current AQI for ${label(a.city, a.lat, a.lon)}, data as of ${dt.local} ${dt.zone} · headline from ${sourceLabel(h)}`,
+    keyValues: {
+      "headline US AQI": h.value === null ? null : formatIndex(h.value, "us"),
+      source: sourceLabel(h),
+      "stations (15 km)": h.summary.freshCount,
+      "station median": h.summary.median,
+      "model US AQI": c.usAqi,
+      "India NAQI": c.inAqi === null ? null : formatIndex(c.inAqi, "in"),
+      "PM2.5 µg/m³ (model)": c.pollutants.pm2_5 === null ? null : r1(c.pollutants.pm2_5),
+    },
   };
 }
 
@@ -328,7 +428,7 @@ async function toolHistory(a: z.infer<typeof ARG_SCHEMAS.get_history>, d: Assist
   if (pts.length === 0) return { ok: true, result: { status: "no_data", source: SOURCE }, summary: "No history returned", keyValues: {} };
   const tz = series.timezone;
   const hours = toLocalHours(
-    pts.map((p) => ({ time: p.time, value: a.scale === "us" ? p.usAqi : p.euAqi, subs: a.scale === "us" ? p.usSubIndices : p.euSubIndices })),
+    pts.map((p) => ({ time: p.time, value: pointValue(p, a.scale), subs: pointSubs(p, a.scale) })),
     tz,
   );
   const endDate = localParts(pts[pts.length - 1].time, tz).date;
@@ -342,12 +442,12 @@ async function toolHistory(a: z.infer<typeof ARG_SCHEMAS.get_history>, d: Assist
   const bw = bestWorst(days);
   const peak = extremeHour(profileHours, "peak");
   const dt = dataTime(pts[pts.length - 1].time, tz);
-  const scaleName = a.scale === "us" ? "US AQI" : "European AQI";
+  const scaleName = SCALE_NAME[a.scale];
   return {
     ok: true,
     result: {
       status: "ok",
-      source: SOURCE,
+      source: `${SOURCE} model history${a.scale === "in" ? " (NAQI computed by AirIQ from model concentrations)" : ""}`,
       scale: scaleName,
       timezone: tz,
       dataTime: dt,
@@ -388,7 +488,7 @@ async function toolForecast(a: z.infer<typeof ARG_SCHEMAS.get_forecast>, d: Assi
     if (Date.parse(p.time) <= now) nowIdx = i;
   });
   const pts = series.points.slice(nowIdx);
-  const val = (p: (typeof pts)[number]) => (a.scale === "us" ? p.usAqi : p.euAqi);
+  const val = (p: (typeof pts)[number]) => pointValue(p, a.scale);
   const valid = pts.filter((p) => val(p) !== null);
   if (valid.length === 0) return { ok: true, result: { status: "no_data", source: SOURCE }, summary: "No forecast returned", keyValues: {} };
   const daily = dailyRanges(
@@ -400,12 +500,12 @@ async function toolForecast(a: z.infer<typeof ARG_SCHEMAS.get_forecast>, d: Assi
   const peak = v48.reduce((m, x) => (x.aqi > m.aqi ? x : m), v48[0]);
   const low = v48.reduce((m, x) => (x.aqi < m.aqi ? x : m), v48[0]);
   const dt = dataTime(pts[0].time, tz);
-  const scaleName = a.scale === "us" ? "US AQI" : "European AQI";
+  const scaleName = SCALE_NAME[a.scale];
   return {
     ok: true,
     result: {
       status: "ok",
-      source: `${SOURCE} official forecast`,
+      source: `${SOURCE} official forecast (model-based; it smooths local pollution and can under-estimate where ground stations read higher)`,
       scale: scaleName,
       timezone: tz,
       dataTime: dt,
@@ -420,48 +520,58 @@ async function toolForecast(a: z.infer<typeof ARG_SCHEMAS.get_forecast>, d: Assi
 }
 
 async function toolCompare(a: z.infer<typeof ARG_SCHEMAS.compare_cities>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const settled = await Promise.allSettled(a.cities.map((c) => d.currentAir(c.lat, c.lon)));
+  const settled = await Promise.allSettled(a.cities.map((c) => headlineFor(d, c.lat, c.lon, "us", a.source)));
   const rows = a.cities.map((c, i) => {
     const s = settled[i];
     if (s.status !== "fulfilled") return { name: c.name, status: "error" as const, error: "data source unavailable" };
-    const cur = s.value.current;
+    const { air, h } = s.value;
+    const cur = air.current;
     const dt = dataTime(cur.time, cur.timezone);
     return {
       name: c.name,
       status: "ok" as const,
-      usAqi: cur.usAqi,
-      usCategory: cur.usAqi === null ? null : getCategory(cur.usAqi, "us").label,
+      headlineUsAqi: h.value === null ? null : Math.round(h.value),
+      headline: { ...indexValue(h.value, "us"), source: sourceLabel(h), observedLocal: h.observedAt ? localStamp(h.observedAt, cur.timezone) : null },
+      stationCount: h.summary.freshCount,
+      modelUsAqi: indexValue(cur.usAqi, "us"),
       usMainPollutant: mainName(cur.dominantUs),
-      europeanAqi: cur.euAqi,
-      europeanCategory: cur.euAqi === null ? null : getCategory(cur.euAqi, "eu").label,
+      europeanAqi: indexValue(cur.euAqi, "eu"),
       // Both scales, explicitly: real Gemini once guessed the EU main pollutant when only the US one was returned.
       europeanMainPollutant: mainName(cur.dominantEu),
+      indiaNaqi: { ...indexValue(cur.inAqi, "in"), mainPollutant: mainName(cur.dominantIn), basis: "model concentrations, computed by AirIQ" },
       timezone: cur.timezone,
       dataTime: dt,
     };
   });
-  const ok = rows.filter((r): r is Extract<(typeof rows)[number], { status: "ok" }> => r.status === "ok" && r.usAqi !== null);
-  ok.sort((x, y) => (x.usAqi as number) - (y.usAqi as number));
+  const ok = rows.filter((r): r is Extract<(typeof rows)[number], { status: "ok" }> => r.status === "ok" && r.headlineUsAqi !== null);
+  ok.sort((x, y) => (x.headlineUsAqi as number) - (y.headlineUsAqi as number));
   const ranked = ok.map((r, i) => ({ rank: i + 1, ...r }));
-  const failed = rows.filter((r) => r.status !== "ok" || r.usAqi === null).map((r) => ({ name: r.name, status: "error", error: "no reading" }));
+  const failed = rows.filter((r) => r.status !== "ok" || r.headlineUsAqi === null).map((r) => ({ name: r.name, status: "error", error: "no reading" }));
   if (ranked.length === 0) return err("Comparison failed", "No city returned data.");
   return {
     ok: true,
-    result: { status: "ok", source: SOURCE, rankedCleanestFirst: ranked, unavailable: failed },
+    result: { status: "ok", source: `${SOURCE} model and ground stations (WAQI/OpenAQ)`, rankedCleanestFirst: ranked, unavailable: failed },
     summary: `Compared ${a.cities.map((c) => c.name.slice(0, 30)).join(", ")}, data as of ${ranked[0].dataTime.local} ${ranked[0].dataTime.zone}`,
-    keyValues: Object.fromEntries(ranked.map((r) => [r.name.slice(0, 40), `US AQI ${r.usAqi} (${r.usCategory})`])),
+    keyValues: Object.fromEntries(ranked.map((r) => [r.name.slice(0, 40), `US AQI ${r.headline.display} (${r.headline.category}; ${r.headline.source})`])),
   };
 }
 
 async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const air = await d.currentAir(a.lat, a.lon);
+  const { air, h } = await headlineFor(d, a.lat, a.lon, a.scale, a.source);
   const c = air.current;
-  const aqi = a.scale === "us" ? c.usAqi : c.euAqi;
-  if (aqi === null) return { ok: true, result: { status: "no_data", source: SOURCE }, summary: "No current AQI for advice", keyValues: {} };
+  const aqi = h.value;
+  if (aqi === null) {
+    return {
+      ok: true,
+      result: { status: "no_data", source: SOURCE, note: a.scale === "in" ? (c.inReason ?? "NAQI could not be computed.") : "No current index value." },
+      summary: "No current AQI for advice",
+      keyValues: {},
+    };
+  }
   const adv = healthAdvice({
     aqi,
     scale: a.scale,
-    dominant: a.scale === "us" ? c.dominantUs : c.dominantEu,
+    dominant: a.scale === "us" ? c.dominantUs : a.scale === "eu" ? c.dominantEu : c.dominantIn,
     pollutants: c.pollutants,
     profile: a.profile,
     localHour: localParts(c.time, c.timezone).hour,
@@ -472,10 +582,16 @@ async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: A
     ok: true,
     result: {
       status: "ok",
-      source: `AirIQ rules engine on ${SOURCE} data`,
+      source: `AirIQ rules engine on the headline in effect (${sourceLabel(h)})`,
       profile: PROFILES[a.profile].label,
-      scale: a.scale === "us" ? "US AQI" : "European AQI",
-      aqi,
+      scale: SCALE_NAME[a.scale],
+      aqi: Math.round(aqi),
+      aqiDisplay: formatIndex(aqi, a.scale),
+      beyondIndex: isBeyondIndex(aqi, a.scale),
+      aqiSource: sourceLabel(h),
+      aqiReason: h.reason,
+      modelValue: h.modelValue === null ? null : Math.round(h.modelValue),
+      stations: stationBlock(h, c.timezone),
       category: adv.category.label,
       timezone: c.timezone,
       dataTime: dt,
@@ -487,17 +603,27 @@ async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: A
       why: adv.why,
       disclaimer: "General information, not medical advice.",
     },
-    summary: `Health advice (${PROFILES[a.profile].label}) for ${label(a.city, a.lat, a.lon)}, data as of ${dt.local} ${dt.zone}`,
-    keyValues: { profile: PROFILES[a.profile].label, aqi, category: adv.category.label, headline: adv.headline.text },
+    summary: `Health advice (${PROFILES[a.profile].label}) for ${label(a.city, a.lat, a.lon)} using ${sourceLabel(h)}, data as of ${dt.local} ${dt.zone}`,
+    keyValues: { profile: PROFILES[a.profile].label, [SCALE_NAME[a.scale]]: formatIndex(aqi, a.scale), source: sourceLabel(h), category: adv.category.label, headline: adv.headline.text },
   };
 }
 
 async function toolWindows(a: z.infer<typeof ARG_SCHEMAS.find_safe_windows>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const [series, sun] = await Promise.all([d.airSeries(a.lat, a.lon, 0, 3), d.sunTimes(a.lat, a.lon).catch(() => null)]);
+  const [series, sun, bundle] = await Promise.all([
+    // One past day so the 24-hour NAQI means are defined from the first forecast hour.
+    d.airSeries(a.lat, a.lon, a.scale === "in" ? 1 : 0, 3),
+    d.sunTimes(a.lat, a.lon).catch(() => null),
+    headlineFor(d, a.lat, a.lon, "us", a.source).catch(() => null),
+  ]);
   const now = d.now();
   const threshold = PROFILES[a.profile].defaultThreshold[a.scale];
+  const div = bundle?.h.divergence ?? null;
+  const underEstimate =
+    div !== null && div > 0.25
+      ? `Nearby ground stations currently read ${Math.round(div * 100)}% higher than the model (US AQI), so this model forecast likely under-estimates.`
+      : null;
   const res = findSafeWindows({
-    points: series.points.map((p) => ({ time: p.time, value: a.scale === "us" ? p.usAqi : p.euAqi })),
+    points: series.points.map((p) => ({ time: p.time, value: pointValue(p, a.scale) })),
     threshold,
     timeZone: series.timezone,
     activity: a.activity,
@@ -508,9 +634,10 @@ async function toolWindows(a: z.infer<typeof ARG_SCHEMAS.find_safe_windows>, d: 
   });
   const w = (x: { label: string; min: number; max: number; hours: number }) => ({ localTime: x.label, aqiMin: r0(x.min), aqiMax: r0(x.max), hours: x.hours });
   const dt = dataTime(new Date(Math.floor(now / 3600_000) * 3600_000).toISOString(), series.timezone);
-  const scaleName = a.scale === "us" ? "US AQI" : "European AQI";
+  const scaleName = SCALE_NAME[a.scale];
   const base = {
-    source: `${SOURCE} official forecast`,
+    source: `${SOURCE} official forecast (model-based)`,
+    forecastNote: underEstimate,
     scale: scaleName,
     threshold,
     thresholdRule: a.activity === "windows" ? "cleanest hours (no threshold)" : `${scaleName} at or below ${threshold} (${PROFILES[a.profile].label} profile)`,

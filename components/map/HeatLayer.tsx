@@ -20,8 +20,10 @@ const PANE = "airiq-heat";
 const CELL_PX = 6;
 
 /**
- * Canvas overlay that interpolates grid values with inverse-distance
- * weighting and colors them with the category ramp. Redraws on move/zoom end;
+ * Canvas overlay that interpolates sample values (model grid points, ground
+ * stations, or both; see lib/heat-blend.ts) with inverse-distance weighting
+ * and colors them with the category ramp (beyond-index values get their own
+ * colour). Redraws on move/zoom end;
  * hidden during zoom animations so it never shows a mis-scaled frame.
  */
 class IdwHeatLayer extends L.Layer {
@@ -115,6 +117,9 @@ class IdwHeatLayer extends L.Layer {
 
     const gw = Math.ceil(canvas.width / CELL_PX);
     const gh = Math.ceil(canvas.height / CELL_PX);
+    // The map container can measure 0 px for a frame while the page lays out
+    // (seen once in Phase 8's tour as an IndexSizeError); skip until it has a size.
+    if (!(gw > 0 && gh > 0)) return;
     const off = document.createElement("canvas");
     off.width = gw;
     off.height = gh;

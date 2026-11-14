@@ -54,6 +54,9 @@ export async function GET(req: NextRequest) {
         const eu = pm25SeriesToIndex(values, pm, "eu");
         const euLo = pm25SeriesToIndex(values, lo, "eu");
         const euHi = pm25SeriesToIndex(values, hi, "eu");
+        const inn = pm25SeriesToIndex(values, pm, "in");
+        const inLo = pm25SeriesToIndex(values, lo, "in");
+        const inHi = pm25SeriesToIndex(values, hi, "in");
         const strip = ({ mae, rmse, n }: { mae: number; rmse: number; n: number }) => ({ mae, rmse, n });
         model = {
           status: "ok",
@@ -80,6 +83,9 @@ export async function GET(req: NextRequest) {
             eu: eu[i],
             euLo: euLo[i],
             euHi: euHi[i],
+            in: inn[i],
+            inLo: inLo[i],
+            inHi: inHi[i],
           })),
         };
       } else {

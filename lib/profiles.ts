@@ -19,17 +19,24 @@ export interface Profile {
   /**
    * Index at which guidance tightens for this profile (when the main pollutant
    * is one it is sensitive to): the EPA "Unhealthy for Sensitive Groups" line
-   * (US 101) or the EEA "Moderate" band where sensitive-group advice starts (EU 40).
+   * (US 101), the EEA "Moderate" band where sensitive-group advice starts (EU 40),
+   * or CPCB's "Moderately polluted" band, whose health statement first names
+   * people with lung or heart disease, children and older adults (NAQI 101).
    */
-  tightenAt: { us: number; eu: number };
-  /** Default alert threshold (alert when the index goes ABOVE it). */
-  defaultThreshold: { us: number; eu: number };
+  tightenAt: { us: number; eu: number; in: number };
+  /**
+   * Default alert threshold (alert when the index goes ABOVE it). NAQI:
+   * sensitive profiles at 100 (Moderately polluted, CPCB's first statement
+   * about people with lung/heart disease, children and older adults); general
+   * at 200 (Poor: "breathing discomfort to people on prolonged exposure").
+   */
+  defaultThreshold: { us: number; eu: number; in: number };
 }
 
-const SENSITIVE_TIGHTEN = { us: 101, eu: 40 } as const;
-const GENERAL_TIGHTEN = { us: 151, eu: 60 } as const;
-const SENSITIVE_THRESHOLD = { us: 100, eu: 40 } as const;
-const GENERAL_THRESHOLD = { us: 150, eu: 60 } as const;
+const SENSITIVE_TIGHTEN = { us: 101, eu: 40, in: 101 } as const;
+const GENERAL_TIGHTEN = { us: 151, eu: 60, in: 201 } as const;
+const SENSITIVE_THRESHOLD = { us: 100, eu: 40, in: 100 } as const;
+const GENERAL_THRESHOLD = { us: 150, eu: 60, in: 200 } as const;
 
 export const PROFILES: Record<ProfileId, Profile> = {
   general: {

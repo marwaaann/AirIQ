@@ -4,7 +4,8 @@ import { useState, type ReactNode } from "react";
 
 import { CategorySwatch } from "@/components/CategoryBadge";
 import { LocationIcon } from "@/components/icons";
-import { EU_CATEGORIES, POLLUTANT_INFO, US_CATEGORIES, type AqiCategory } from "@/lib/aqi-categories";
+import { categoriesFor, gaugeCategories, POLLUTANT_INFO, type AqiCategory } from "@/lib/aqi-categories";
+import { HEAT_MODE_LABEL, HEAT_MODES, type HeatMode } from "@/lib/heat-blend";
 import { timeAgo } from "@/lib/format";
 import { LAYER_LABEL, MAP_LAYERS, type MapLayer } from "@/lib/map-layers";
 import type { AqiScale } from "@/types/air";
@@ -53,6 +54,7 @@ export function MapLegend({
   stationsError,
   modelTime,
   fetchedAt,
+  heatNote,
 }: {
   layer: MapLayer;
   scale: AqiScale;
@@ -60,10 +62,12 @@ export function MapLegend({
   stationsError: string | null;
   modelTime: string | null;
   fetchedAt: string | null;
+  /** Which source drives which part of the heatmap (from lib/heat-blend.ts). */
+  heatNote: string | null;
 }) {
-  const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
-  const scaleName = scale === "us" ? "US AQI (EPA)" : "European AQI (EEA)";
-  const gradient = `linear-gradient(90deg, ${cats.map((c) => c.color).join(", ")})`;
+  const cats = categoriesFor(scale);
+  const scaleName = scale === "us" ? "US AQI (EPA)" : scale === "eu" ? "European AQI (EEA)" : "India NAQI (CPCB, computed by AirIQ)";
+  const gradient = `linear-gradient(90deg, ${gaugeCategories(scale).map((c) => c.color).join(", ")})`;
   const stationSource =
     stations?.source === "waqi" ? "WAQI" : stations?.source === "openaq" ? "OpenAQ" : stationsError ? "unavailable" : "none";
 
@@ -73,7 +77,7 @@ export function MapLegend({
         {layer === "aqi" ? scaleName : `${POLLUTANT_INFO[layer].short} · colored by its ${scaleName} sub-index`}
       </p>
       <p className="text-muted">
-        {layer === "aqi" ? "Badge = index value." : "Badge = concentration in µg/m³."}
+        {layer === "aqi" ? "Badge = index value; 500+ = beyond the top of the index (thick outline)." : "Badge = concentration in µg/m³."}
       </p>
       <div className="h-2 w-full rounded-full" style={{ background: gradient }} aria-hidden />
       <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
@@ -94,11 +98,19 @@ export function MapLegend({
         {stations && stations.source !== "none" ? (
           <li className="flex items-center gap-2">
             <span aria-hidden className="inline-block h-4 w-4 rounded-full border-2 border-text bg-surface-2" />
-            Ground station ({stationSource}, US AQI) · {stations.stations.length} shown
+            Ground station ({stationSource}, US AQI as reported) · {stations.stations.length} shown
             {layer !== "aqi" && layer !== "pm2_5" ? " on AQI/PM2.5 layers" : ""}
           </li>
         ) : null}
+        {stations && stations.source !== "none" && scale !== "us" && (layer === "aqi" || layer === "pm2_5") ? (
+          <li className="text-muted">Station markers stay on the US AQI scale; they are not converted to the {scale === "eu" ? "European AQI" : "NAQI"}.</li>
+        ) : null}
       </ul>
+      {heatNote ? (
+        <p className="rounded-md bg-surface-2 px-2 py-1" data-testid="heat-note">
+          {heatNote}
+        </p>
+      ) : null}
       {stations?.note ? <p className="text-muted">{stations.note}</p> : null}
       {stationsError ? <p className="text-danger">Ground stations unavailable: {stationsError}</p> : null}
       <p className="text-muted">
@@ -125,11 +137,15 @@ export function HeatControls({
   onVisible,
   opacity,
   onOpacity,
+  mode,
+  onMode,
 }: {
   visible: boolean;
   onVisible: (v: boolean) => void;
   opacity: number;
   onOpacity: (v: number) => void;
+  mode: HeatMode;
+  onMode: (m: HeatMode) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -160,6 +176,33 @@ export function HeatControls({
         />
         <span className="w-9 text-right tabular-nums">{Math.round(opacity * 100)}%</span>
       </label>
+      <div role="radiogroup" aria-label="Heatmap source" className={`flex flex-wrap gap-1 ${visible ? "" : "opacity-50"}`} data-testid="heat-mode">
+        {HEAT_MODES.map((m, i) => {
+          const checked = m === mode;
+          return (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              disabled={!visible}
+              tabIndex={checked ? 0 : -1}
+              data-heat-mode={m}
+              onClick={() => onMode(m)}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                const next = HEAT_MODES[(i + (e.key === "ArrowRight" ? 1 : HEAT_MODES.length - 1)) % HEAT_MODES.length];
+                onMode(next);
+                (e.currentTarget.parentElement?.querySelector(`[data-heat-mode="${next}"]`) as HTMLButtonElement | null)?.focus();
+              }}
+              className={`rounded-md border px-2 py-1 text-xs font-medium ${checked ? "border-text bg-text text-bg" : "border-border bg-surface hover:bg-surface-2"}`}
+            >
+              {HEAT_MODE_LABEL[m]}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

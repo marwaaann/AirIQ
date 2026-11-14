@@ -1,6 +1,6 @@
 # AirIQ: Real-Time Air Quality Intelligence
 
-Built for the **BREATHE BETTER** hackathon. AirIQ shows live air quality for any place on Earth: a real-time AQI dashboard, an interactive pollution map with heatmaps, history, forecasts, health advice, smart alerts and an AI assistant. It uses public data only (Open-Meteo / Copernicus CAMS, plus optional WAQI or OpenAQ ground stations), works with **no API keys**, and labels where every number comes from.
+Built for the **BREATHE BETTER** hackathon. AirIQ shows live air quality for any place on Earth: a real-time AQI dashboard, an interactive pollution map with heatmaps, history, forecasts, health advice, smart alerts and an AI assistant. It uses public data only (Open-Meteo / Copernicus CAMS, plus optional WAQI or OpenAQ ground stations), works with **no API keys**, and labels where every number comes from. Where ground stations exist, the headline is **station-first** (median of fresh stations within 15 km), and it offers three scales: **US AQI, European AQI and India NAQI** (computed by AirIQ per CPCB).
 
 > General information, not medical advice. See [/about](app/about/page.tsx) in the app for sources, licences, methods and limitations.
 
@@ -31,16 +31,18 @@ All taken from the production build with live data on 11 Nov 2026.
 
 | Challenge item | Where | What it does |
 | --- | --- | --- |
-| **Real-time AQI dashboard** | `/`, `/city/[slug]` | Live US and European AQI (toggle), category verdict, six pollutant cards with WHO guideline ratios and 24 h sparklines, main pollutant, in-app EPA cross-check, 10-minute auto-refresh. |
-| **Interactive map** | `/map` | Live Open-Meteo grid (up to 64 points, one batched request) on Esri light/dark basemaps; layers for AQI, PM2.5, PM10, NO₂, O₃; popups with all pollutants; optional measured ground stations (WAQI or OpenAQ); fly-to search, "Use my location", shareable URL. |
+| **Real-time AQI dashboard** | `/`, `/city/[slug]` | Station-first headline (median of fresh stations within 15 km, else the nearest within 10 km, else the model) with its source, station count, highest station and time; **Data source: Auto / Nearest station / Model only**; US AQI, European AQI and India NAQI; values above an index shown as "500+"; pollution-episode banner; "Stations near you" list; six pollutant cards with WHO ratios and 24 h sparklines; 10-minute auto-refresh. |
+| **Interactive map** | `/map` | Ground stations as the primary layer (value or "500+", beyond-index style) over the live Open-Meteo grid; heatmap **Blended / Stations only / Model only**; station popups with dominant pollutant, observation time and age, and the model value at that point; layers for AQI, PM2.5, PM10, NO₂, O₃ on three scales; fly-to search, "Use my location", shareable URL. |
 | **Historical tracker** | City → **History** (`?tab=history&range=7\|30\|90`) | Daily mean/max chart with category bands, calendar heatmap, weekday × hour heatmap, best/worst day, change vs previous period, and insights only when the data supports them. |
 | **AQI forecasting** | City → **Forecast** | Official 5-day CAMS forecast, plus the AirIQ trend model (damped Holt-Winters, 48 h) with an 80% range and a live backtest against two baselines; daily strip; cleanest 3-hour windows. |
 | **AI assistant** | `/assistant`, "Ask AirIQ" on city pages | Gemini with 7 tools (current AQI, history, forecast, compare, health advice, safe windows, city resolution). Every number is checked against the fetched data; "Data used" panel; asks when a city name is ambiguous. |
-| **Smart alerts** | `/alerts`, header bell | Rules per city on AQI or a pollutant (US or EU scale), on the current reading or the forecast, with quiet hours, hysteresis and opt-in notifications through the service worker. |
+| **Smart alerts** | `/alerts`, header bell | Rules per city on AQI or a pollutant (US, EU or NAQI), on the current headline (stations first; model when stations are older than 3 h; each event records its source) or the forecast, with NAQI-aware defaults, quiet hours, hysteresis and opt-in notifications. |
 | **Heatmaps and analytics** | Map, History, Weather, Compare | IDW heatmap on the map; calendar and hour-of-day heatmaps; weather correlations (Spearman, daily), scatter, wind rose, dry vs rain days; side-by-side comparison of 2–4 cities. |
 
 **Extras:**
-- **Health advice** for 6 profiles, from a sourced rules table (EPA, EEA, WHO), plus a **safe-time finder**.
+- **Health advice** for 6 profiles, from a sourced rules table (EPA, EEA, CPCB, WHO), plus a **safe-time finder**. Hazardous and beyond-index readings always get the strongest guidance.
+- **India NAQI** computed from concentrations with CPCB's breakpoints, averaging periods and minimum-data rules ([CPCB, About NAQI](https://web.archive.org/web/20160804011654/http://cpcb.nic.in:80/About_AQI.pdf); [CPCB NAQI report](https://web.archive.org/web/20160417204306/http://www.cpcb.nic.in/FINAL-REPORT_AQI_.pdf)).
+- **"Why apps differ"**: `/about` explains modelled vs measured data, scales, averaging and station coverage.
 - **Cigarette equivalent** (Berkeley Earth rule of thumb).
 - **Shareable report**: PDF, PNG and print, with live Open Graph images.
 - **Installable PWA that works offline**, with stale data always labelled.
@@ -50,15 +52,16 @@ All taken from the production build with live data on 11 Nov 2026.
 
 ```mermaid
 flowchart LR
-  P["Open-Meteo (CAMS air quality, weather, geocoding)<br/>WAQI / OpenAQ (optional)<br/>Gemini (optional)"]
-  S["Route handlers /api/*<br/>Zod validation · TTL cache · no invented values"]
+  P["Open-Meteo (CAMS air quality, weather, geocoding)<br/>WAQI / OpenAQ stations (optional)<br/>Gemini (optional)"]
+  S["Route handlers /api/*<br/>Zod validation · TTL cache · NAQI computed · no invented values"]
+  H["Headline selection<br/>lib/headline-source.ts<br/>station median → nearest → model"]
   W["Service worker<br/>network-first, labelled offline copies"]
   C["SWR data layer<br/>one request per key · stale flag"]
   U["UI: dashboard · map · history · forecast<br/>health · weather · compare · report"]
   A["Alert engine<br/>(skips stale data)"]
   G["/api/assistant<br/>tool loop + grounding guard"]
-  P --> S --> W --> C --> U
-  C --> A
+  P --> S --> W --> C --> H --> U
+  H --> A
   U -- "POST, never cached" --> G --> P
 ```
 
@@ -115,8 +118,8 @@ All variables are **optional**. They are validated once at startup in `lib/env.t
 
 | Variable | Required? | What it unlocks | Without it |
 | --- | --- | --- | --- |
-| `WAQI_TOKEN` | Optional | Measured ground-station markers on the map (preferred source). [Free token](https://aqicn.org/data-platform/token/) | Falls back to OpenAQ, or no stations ("Ground stations: not configured") |
-| `OPENAQ_API_KEY` | Optional | Ground stations from OpenAQ (backup source). [Free key](https://explore.openaq.org/register) | No OpenAQ fallback |
+| `WAQI_TOKEN` | Optional | The station-first headline, "Stations near you", station map markers and the blended heatmap (preferred source). [Free token](https://aqicn.org/data-platform/token/) | Falls back to OpenAQ, or the model with a visible "No nearby station data" note |
+| `OPENAQ_API_KEY` | Optional | Ground stations from OpenAQ (backup source) and the **station-based** India NAQI from a station's own concentrations. [Free key](https://explore.openaq.org/register) | No OpenAQ fallback; NAQI is model-based |
 | `GEMINI_API_KEY` | Optional | The AI assistant. [Free key](https://aistudio.google.com/apikey) | "Assistant not configured"; everything else works |
 | `GEMINI_MODEL` | Optional | Override the model | `gemini-3.6-flash` |
 | `GEMINI_FALLBACK_MODEL` | Optional | Backup model used once on a quota error; `off` disables it | `gemini-3.5-flash-lite` |
@@ -130,12 +133,14 @@ All variables are **optional**. They are validated once at startup in `lib/env.t
 
 | Route | Source | Notes |
 | --- | --- | --- |
-| `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, sub-indices, EPA cross-check. Cached 10 min |
+| `GET /api/air?lat=&lon=` | Open-Meteo Air Quality | Current reading, last 24 h, sub-indices on all three scales (NAQI computed by AirIQ), EPA cross-check. Cached 10 min |
 | `GET /api/history?lat=&lon=&days=7\|30\|90` | Open-Meteo Air Quality (`past_days`) | Hourly AQI (both scales) and 6 pollutants; fetches 2× the range (max 92 days) for period comparison. Cached 30 min |
 | `GET /api/forecast?lat=&lon=` | Open-Meteo Air Quality + Weather (sunrise/sunset) | Official forecast, AirIQ trend model, backtest, 80% range. Cached 15 min |
 | `GET /api/weather?lat=&lon=&days=7\|30\|90` | Open-Meteo Weather | Hourly temperature, humidity, wind, pressure, precipitation, boundary layer height. Cached 30 min |
 | `GET /api/grid?south=&west=&north=&east=&zoom=` | Open-Meteo Air Quality (one batched multi-location call) | ≤ 64 snapped grid points for the map. Cached 10 min; 400 on inverted or oversized bounds |
-| `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 | `{ source: "none" }` when no key is set. Cached 10 min |
+| `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 | Map viewport mode. `{ source: "none" }` when no key is set. Cached 10 min |
+| `GET /api/stations?lat=&lon=[&radius=15]` | WAQI `/map/bounds/` → OpenAQ v3 (+ OpenAQ hourly concentrations for NAQI) | Nearby mode: stations within the radius, nearest first (≤ 40), with distance and observation time, plus `stationNaqi` when OpenAQ is set. A failing feed returns `status: "error"` (HTTP 200) so the page falls back to the model. Cached 10 min |
+| `GET /api/station?id=waqi-123` | WAQI `/feed/@uid/` | Popup detail: dominant pollutant, observation time, per-pollutant **index** values. Cached 10 min |
 | `GET /api/geocode?q=&count=&lang=` | Open-Meteo Geocoding | City search. Cached 24 h |
 | `GET /api/assistant` | n/a | `{ configured, model, fallbackModel }`, never the key |
 | `POST /api/assistant` | Google Gemini + AirIQ tools | `{ messages, context? }` → `text/event-stream`. 503 without a key, 429 + `Retry-After` when rate-limited, 400 on bad input |
@@ -149,7 +154,7 @@ Everything upstream is validated with Zod. Failures return `{ error, detail }` w
 | --- | --- |
 | `npm run typecheck` | `tsc --noEmit`, strict |
 | `npm run lint` | ESLint (Next core-web-vitals + TypeScript), plus a rule that Zod is imported only through `lib/zod.ts` |
-| `npm test` | 270 unit tests (`node --test`) |
+| `npm test` | 349 unit tests (`node --test`) |
 | `npm run check` | All three |
 | `node scripts/a11y-audit.mjs http://localhost:3000` | axe-core (WCAG 2.2 AA + best practice) on 12 routes × light/dark × desktop/mobile against a running production server; exits 1 on any serious or critical issue |
 
@@ -159,9 +164,10 @@ The unit tests cover:
 - alert evaluation, hysteresis and quiet hours, and skipping stale data;
 - service-worker strategy logic, stale-header parsing and time zones;
 - shared-link settings, storage validation, environment validation;
-- the assistant's tool loop, grounding guard and fallback model.
+- the assistant's tool loop, grounding guard and fallback model;
+- Phase 9: station selection (≥ 3 stations median, single station, too far, too old, none, token missing, feed error), the 25% divergence note, NAQI sub-indices at every CPCB breakpoint edge and the CPCB worked example, averaging and minimum-data rules, station-based NAQI unit conversion, beyond-index values in categories, gauge, chart axes, heatmap colours and alerts, heatmap blending, health rules at the top rank, scale and data-source switching in shared links.
 
-Each phase was also verified in headless Chrome against the production build with live data. The Phase 8 run is recorded in [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md).
+Each phase was also verified in headless Chrome against the production build with live data. The Phase 8 run is recorded in [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md) and the Phase 9 run (stations, NAQI, beyond-index) in [docs/PHASE9-REPORT.md](docs/PHASE9-REPORT.md).
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs install, typecheck, lint, tests and the production build on every push and pull request. No keys are needed.
 
@@ -188,11 +194,13 @@ AirIQ shows the required credits in the footer of every page, on the map, and in
 - **OpenAQ**: attribution to OpenAQ, and to original providers where they require it ([OpenAQ terms](https://docs.openaq.org/about/terms)).
 - **Esri**: "Powered by Esri" plus the service's data credits ("Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community", read from the tile service's `copyrightText`) ([Esri attribution requirements](https://developers.arcgis.com/documentation/esri-and-data-attribution/)).
 - **BigDataCloud**: the free client-side reverse geocoder may only be called from the browser with the device's current location ([BigDataCloud terms](https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api)).
+- **CPCB (India)**: NAQI breakpoints, averaging periods and worked example from [About National Air Quality Index](https://web.archive.org/web/20160804011654/http://cpcb.nic.in:80/About_AQI.pdf); minimum-data rules (§3.7) and health statements (Table 3.12) from the [National Air Quality Index report](https://web.archive.org/web/20160417204306/http://www.cpcb.nic.in/FINAL-REPORT_AQI_.pdf). Both are archived copies of cpcb.nic.in, which did not respond on 14 Nov 2026. AirIQ computes NAQI itself; it may differ from CPCB's official bulletin.
 - **Berkeley Earth**: 22 µg/m³ of PM2.5 for a day ≈ 1 cigarette, a rough illustrative comparison ([Air Pollution and Cigarette Equivalence](https://berkeleyearth.org/air-pollution-and-cigarette-equivalence/)).
 
 ## Limitations
 
-- **Grid data is modelled, not measured.** CAMS cells are about 11 km (Europe) to 45 km (elsewhere) and smooth out local hot spots. The heatmap is interpolated between grid points. Ground stations are optional and vary widely in coverage.
+- **Grid data is modelled, not measured.** CAMS cells are about 11 km (Europe) to 45 km (elsewhere) and smooth out local hot spots, so AirIQ prefers fresh ground stations for the headline. Stations are optional, vary widely in coverage, often report 1–3 h late, and publish a US AQI only (WAQI), so the European AQI and (without OpenAQ) the NAQI come from the model.
+- **NAQI is AirIQ's calculation**, not CPCB's bulletin, and was not compared with the official bulletin directly. History, forecast and map NAQI always use model concentrations.
 - **Alerts only run while an AirIQ tab is open.** There is no push server.
 - **Offline data is the last saved copy**, always labelled with its time, and alerts never run on it. A view never opened online is not available offline.
 - **History is limited** to about 92 days (Open-Meteo), and the weather archive can be shorter.
@@ -240,6 +248,17 @@ output    PM2.5 = max(0, e^x̂ − 1)
 These change every hour with new data. The UI always shows the current numbers and says plainly when the model does not beat a baseline.
 
 ## Decisions
+
+### Phase 9: station-first headline, extreme values, India NAQI
+
+- **Checked the claim first.** On 14 Nov 2026 (21:48 IST) WAQI showed no Delhi-NCR station above 500: maximum 440 (Anand Vihar), median 215 over 67 stations, 9 above 300. The model said 177 at Delhi's centre. The extreme-value handling was built anyway and tested with intercepted data. See [docs/PHASE9-station-check.txt](docs/PHASE9-station-check.txt).
+- **Median of stations, not the nearest or the maximum.** One station near a road or a fire can dominate; the median of ≥ 3 fresh stations within 15 km is robust, and the highest station is always shown next to it. One fresh station within 10 km is used on its own; otherwise the model.
+- **3-hour freshness.** WAQI stations often report late; older readings are listed but never drive the headline or alerts (Sonipat's only station, Murthal, was 3.5 h old during testing, so Sonipat used the model and said why).
+- **No conversions between scales.** WAQI publishes US AQI index values, not concentrations, so they are never turned into µg/m³, the European AQI or NAQI. NAQI comes from concentrations only (station-based via OpenAQ, else model-based) and is labelled as AirIQ's calculation.
+- **Severe and beyond.** CPCB's Severe band is open-ended; AirIQ continues the Very-poor slope (PM2.5 251–380, PM10 431–510 for 401–500) and keeps values above 500, displayed "500+". The US index likewise extends its top band instead of clipping, with a new dark-maroon zigzag "Beyond index" category (rank 5, so health rules give it the Hazardous guidance).
+- **Episodes are never hidden by a smoother scale.** The banner fires on the headline (US ≥ 201, NAQI Very poor/Severe, EU Very poor+) and also when nearby stations read US 201+ while the headline is model-based (EU/NAQI scales or "Model only").
+- **NAQI colours** follow CPCB's green → dark-red legend with AirIQ hex values chosen for WCAG AA text contrast; Very poor uses white text on `#d7191c` (5.2:1).
+- **Heatmap zero-size guard.** The intermittent `IndexSizeError` seen in the Phase 8 tour (canvas measured 0 px for a frame) is now skipped instead of thrown.
 
 ### Phase 8: verification, polish, submission readiness
 

@@ -1,10 +1,12 @@
 /**
  * Smooth color ramp for the heatmap, built from the official category colors.
  * Each category color is anchored at the middle of its band and linearly
- * interpolated in RGB between anchors. Pure module (relative imports only).
+ * interpolated in RGB between anchors. Values above the index's top
+ * ("beyond index") get their own colour: the US "Beyond index" maroon, or the
+ * darkest band on the other scales. Pure module (relative imports only).
  */
 
-import { EU_CATEGORIES, US_CATEGORIES, type AqiCategory } from "./aqi-categories.ts";
+import { gaugeCategories, INDEX_TOP, SCALE_MAX, US_CATEGORIES, type AqiCategory, type ScaleKey } from "./aqi-categories.ts";
 
 export type Rgb = [number, number, number];
 
@@ -27,11 +29,23 @@ function stopsFor(categories: readonly AqiCategory[], topValue: number): Stop[] 
   });
 }
 
-const US_STOPS = stopsFor(US_CATEGORIES, 500);
-const EU_STOPS = stopsFor(EU_CATEGORIES, 125);
+const STOPS: Record<ScaleKey, Stop[]> = {
+  us: stopsFor(gaugeCategories("us"), SCALE_MAX.us),
+  eu: stopsFor(gaugeCategories("eu"), SCALE_MAX.eu),
+  in: stopsFor(gaugeCategories("in"), SCALE_MAX.in),
+};
 
-export function rampColor(value: number, scale: "us" | "eu"): Rgb {
-  const stops = scale === "us" ? US_STOPS : EU_STOPS;
+const BEYOND: Record<ScaleKey, Rgb> = {
+  us: hexToRgb(US_CATEGORIES[US_CATEGORIES.length - 1].color),
+  eu: STOPS.eu[STOPS.eu.length - 1].rgb,
+  in: STOPS.in[STOPS.in.length - 1].rgb,
+};
+
+export function rampColor(value: number, scale: ScaleKey): Rgb {
+  const stops = STOPS[scale];
+  if (!Number.isFinite(value)) return stops[0].rgb;
+  // US AQI / NAQI above 500: distinct beyond-index colour (never a clipped Hazardous red).
+  if (scale !== "eu" && value > INDEX_TOP[scale]) return BEYOND[scale];
   if (!(value > stops[0].at)) return stops[0].rgb;
   const last = stops[stops.length - 1];
   if (value >= last.at) return last.rgb;

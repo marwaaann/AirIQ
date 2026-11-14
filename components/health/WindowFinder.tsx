@@ -8,7 +8,9 @@ import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { useProfile } from "@/hooks/useProfile";
-import { getCategory } from "@/lib/aqi-categories";
+import { getCategory, SCALE_SHORT } from "@/lib/aqi-categories";
+import { pointIndex } from "@/lib/aqi-display";
+import type { HeadlineSource } from "@/lib/headline-source";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { findSafeWindows, type SafeWindow, type WindowActivity } from "@/lib/safe-windows";
 import { staleMetaOf } from "@/lib/stale";
@@ -73,8 +75,12 @@ function WindowList({ windows, scale, unit }: { windows: SafeWindow[]; scale: Aq
   );
 }
 
-/** Safe outdoor windows over the next 48 h of the OFFICIAL forecast. */
-export function WindowFinder({ lat, lon, scale }: { lat: number; lon: number; scale: AqiScale }) {
+/**
+ * Safe outdoor windows over the next 48 h of the OFFICIAL forecast. The
+ * forecast is model-based; when nearby stations read well above the model,
+ * the windows are labelled as likely too optimistic.
+ */
+export function WindowFinder({ lat, lon, scale, headline = null }: { lat: number; lon: number; scale: AqiScale; headline?: HeadlineSource | null }) {
   const [profile] = useProfile();
   const [activity, setActivity] = useState<WindowActivity>("walk");
   const [minHours, setMinHours] = useState<1 | 2 | 3>(2);
@@ -85,12 +91,13 @@ export function WindowFinder({ lat, lon, scale }: { lat: number; lon: number; sc
     keepPreviousData: true,
   });
   const threshold = profile.defaultThreshold[scale];
-  const unit = scale === "us" ? "US AQI" : "EU AQI";
+  const unit = SCALE_SHORT[scale];
+  const underEstimate = headline?.divergence != null && headline.divergence > 0.25 ? Math.round(headline.divergence * 100) : null;
 
   const result = useMemo(() => {
     if (!data) return null;
     return findSafeWindows({
-      points: data.official.points.map((p) => ({ time: p.time, value: scale === "us" ? p.usAqi : p.euAqi })),
+      points: data.official.points.map((p) => ({ time: p.time, value: pointIndex(p, scale) })),
       threshold,
       timeZone: data.official.timezone,
       activity,
@@ -108,9 +115,14 @@ export function WindowFinder({ lat, lon, scale }: { lat: number; lon: number; sc
           Safe times outside (next 48 h)
         </h3>
         <p className="text-xs text-muted">
-          From the official forecast (CAMS via Open-Meteo). Your threshold: {unit} at or below {threshold} ({profile.label} profile). Times are local to the
-          city.
+          From the official model forecast (CAMS via Open-Meteo{scale === "in" ? "; NAQI computed by AirIQ from its concentrations" : ""}). Your threshold:{" "}
+          {unit} at or below {threshold} ({profile.label} profile). Times are local to the city.
         </p>
+        {underEstimate !== null ? (
+          <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs" data-testid="forecast-underestimate">
+            Nearby stations currently read {underEstimate}% higher than the model, so these model-based windows are likely too optimistic.
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-4">
         <Segmented label="Activity" options={ACTIVITIES} value={activity} onChange={setActivity} />

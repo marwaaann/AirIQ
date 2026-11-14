@@ -1,6 +1,6 @@
 "use client";
 
-import { getCategory } from "@/lib/aqi-categories";
+import { formatIndex, getCategory } from "@/lib/aqi-categories";
 import type { WeekdayHourCell } from "@/lib/history-stats";
 import { formatHour, WEEKDAY_SHORT } from "@/lib/time";
 import type { AqiScale } from "@/types/air";
@@ -32,7 +32,7 @@ export function HourOfDayHeatmap({ matrix, scale, summary }: { matrix: WeekdayHo
                     key={cell.hour}
                     title={
                       cell.mean !== null
-                        ? `${WEEKDAY_SHORT[wd]} ${formatHour(cell.hour)}: average ${Math.round(cell.mean)} (${cat?.label}), ${cell.n} h`
+                        ? `${WEEKDAY_SHORT[wd]} ${formatHour(cell.hour)}: average ${formatIndex(cell.mean, scale)} (${cat?.label}), ${cell.n} h`
                         : `${WEEKDAY_SHORT[wd]} ${formatHour(cell.hour)}: no data`
                     }
                     className={`h-4 rounded-[2px] ${cat ? `aqi-pattern-${cat.pattern}` : "bg-surface-2"}`}
@@ -63,7 +63,7 @@ export function HourOfDayHeatmap({ matrix, scale, summary }: { matrix: WeekdayHo
             <tr key={wd}>
               <th scope="row">{WEEKDAY_SHORT[wd]}</th>
               {row.map((c) => (
-                <td key={c.hour}>{c.mean !== null ? Math.round(c.mean) : "no data"}</td>
+                <td key={c.hour}>{c.mean !== null ? formatIndex(c.mean, scale) : "no data"}</td>
               ))}
             </tr>
           ))}

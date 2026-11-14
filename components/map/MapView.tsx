@@ -11,7 +11,8 @@ import { gridIcon, stationIcon } from "@/components/map/markers";
 import { GridPopup, StationPopup } from "@/components/map/PointPopup";
 import type { Viewport } from "@/hooks/useMapData";
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
-import { getUsCategory, POLLUTANT_INFO } from "@/lib/aqi-categories";
+import { describeIndex, formatIndex, getUsCategory, isBeyondIndex, POLLUTANT_INFO } from "@/lib/aqi-categories";
+import { haversineKm, isFresh } from "@/lib/headline-source";
 import { readCell, type MapLayer } from "@/lib/map-layers";
 import type { AqiScale, GridCell, Station } from "@/types/air";
 
@@ -187,6 +188,12 @@ export interface MapViewProps {
   cells: GridCell[];
   step: number;
   stations: Station[];
+  /** Current time (from useNow) for station freshness. */
+  now: number;
+  /** Heatmap samples, already chosen by lib/heat-blend.ts (stations, model or both). */
+  heatPoints: HeatPoint[];
+  /** Colour scale for the heatmap samples (US AQI when stations drive it). */
+  heatScale: AqiScale;
   heatVisible: boolean;
   heatOpacity: number;
   flyTarget: FlyTarget | null;
@@ -200,6 +207,9 @@ export default function MapView({
   cells,
   step,
   stations,
+  now,
+  heatPoints,
+  heatScale,
   heatVisible,
   heatOpacity,
   flyTarget,
@@ -211,15 +221,10 @@ export default function MapView({
   const [reduceMotion] = useState(prefersReducedMotion);
 
   const readings = useMemo(() => cells.map((c) => ({ cell: c, r: readCell(c, layer, scale) })), [cells, layer, scale]);
-  const heatPoints: HeatPoint[] = useMemo(
-    () =>
-      readings
-        .filter((x): x is typeof x & { r: { index: number } } => x.r.index !== null)
-        .map((x) => ({ lat: x.cell.latitude, lon: x.cell.longitude, value: x.r.index })),
-    [readings],
-  );
   // Stations report a US AQI (overall or from PM2.5), so they are shown on the AQI and PM2.5 layers only.
   const showStations = layer === "aqi" || layer === "pm2_5";
+  // Where stations exist they are the primary layer: model badges are drawn muted underneath.
+  const stationsPrimary = showStations && stations.length > 0;
 
   return (
     <MapContainer
@@ -262,10 +267,10 @@ export default function MapView({
       <InvalidateOnResize />
       <ViewportEvents onViewport={onViewport} />
       <FlyTo target={flyTarget} />
-      <HeatLayer points={heatPoints} scale={scale} step={step} opacity={heatOpacity} visible={heatVisible} />
+      <HeatLayer points={heatPoints} scale={heatScale} step={step} opacity={heatOpacity} visible={heatVisible} />
 
-      <GridMarkers readings={readings} scale={scale} />
-      {showStations ? <StationMarkers stations={stations} layer={layer} /> : null}
+      <GridMarkers readings={readings} scale={scale} muted={stationsPrimary} />
+      {showStations ? <StationMarkers stations={stations} layer={layer} cells={cells} now={now} /> : null}
     </MapContainer>
   );
 }
@@ -277,14 +282,14 @@ type Reading = { cell: GridCell; r: ReturnType<typeof readCell> };
  * calls popup.update() (which auto-pans) whenever an open popup's children
  * change; re-rendering them on every map move would loop.
  */
-const GridMarkers = memo(function GridMarkers({ readings, scale }: { readings: Reading[]; scale: AqiScale }) {
+const GridMarkers = memo(function GridMarkers({ readings, scale, muted }: { readings: Reading[]; scale: AqiScale; muted: boolean }) {
   return (
     <>
       {readings.map(({ cell, r }) => (
         <Marker
           key={`g${cell.latitude},${cell.longitude}`}
           position={stablePosition(cell.latitude, cell.longitude)}
-          icon={gridIcon(r.label, r.category, `${r.spoken}${r.category ? `, ${r.category.label}` : ""} at grid point`)}
+          icon={gridIcon(r.label, r.category, `${r.spoken}${r.category ? `, ${r.category.label}` : ""} at model grid point`, r.beyond, muted)}
           title={`${r.spoken}${r.category ? `, ${r.category.label}` : ""}`}
           keyboard
           riseOnHover
@@ -298,28 +303,43 @@ const GridMarkers = memo(function GridMarkers({ readings, scale }: { readings: R
   );
 });
 
-const StationMarkers = memo(function StationMarkers({ stations, layer }: { stations: Station[]; layer: MapLayer }) {
+/** Nearest model grid point to a station, for the popup's "model at this point" line (US AQI). */
+function nearestModel(s: Station, cells: GridCell[]): { value: number; distanceKm: number } | null {
+  let best: { value: number; distanceKm: number } | null = null;
+  for (const c of cells) {
+    if (c.usAqi === null) continue;
+    const d = haversineKm(s.latitude, s.longitude, c.latitude, c.longitude);
+    if (!best || d < best.distanceKm) best = { value: c.usAqi, distanceKm: d };
+  }
+  return best;
+}
+
+const BROWSER_TZ = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+
+const StationMarkers = memo(function StationMarkers({ stations, layer, cells, now }: { stations: Station[]; layer: MapLayer; cells: GridCell[]; now: number }) {
   return (
     <>
       {stations.map((s) => {
         const cat = getUsCategory(s.aqi);
-        const label = layer === "pm2_5" && s.pm25 !== null ? String(Math.round(s.pm25)) : String(s.aqi);
+        const beyond = layer === "aqi" && isBeyondIndex(s.aqi, "us");
+        const stale = !isFresh(s.updatedAt, now);
+        const label = layer === "pm2_5" && s.pm25 !== null ? String(Math.round(s.pm25)) : formatIndex(s.aqi, "us");
         const spoken =
           layer === "pm2_5" && s.pm25 !== null
             ? `Station ${s.name}: ${POLLUTANT_INFO.pm2_5.short} ${Math.round(s.pm25)} µg/m³`
-            : `Station ${s.name}: US AQI ${s.aqi}, ${cat.label}`;
+            : `Station ${s.name}: ${describeIndex(s.aqi, "us")}, ${cat.label}${stale ? ", older than 3 hours" : ""}`;
         return (
           <Marker
             key={s.id}
             position={stablePosition(s.latitude, s.longitude)}
-            icon={stationIcon(label, cat, spoken)}
+            icon={stationIcon(label, cat, spoken, beyond, stale)}
             title={spoken}
             keyboard
             riseOnHover
-            zIndexOffset={1000}
+            zIndexOffset={beyond ? 2000 : 1000}
           >
-            <Popup maxWidth={280} autoPanPadding={[24, 24]}>
-              <StationPopup station={s} />
+            <Popup maxWidth={300} autoPanPadding={[24, 24]}>
+              <StationPopup station={s} model={nearestModel(s, cells)} timeZone={BROWSER_TZ} fresh={!stale} />
             </Popup>
           </Marker>
         );

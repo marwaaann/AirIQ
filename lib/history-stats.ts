@@ -6,7 +6,7 @@
  * Pure module (relative imports only) so it runs under `node --test`.
  */
 
-import { EU_CATEGORIES, US_CATEGORIES, getCategory, type PollutantKey } from "./aqi-categories.ts";
+import { categoriesFor, getCategory, type PollutantKey } from "./aqi-categories.ts";
 import { datesEnding, formatHour, localParts } from "./time.ts";
 
 /** Days with fewer valid hours than this are "partial". */
@@ -230,7 +230,7 @@ export function weekdayHourMatrix(hours: readonly LocalHour[], minSamples = 1): 
 /* ------------------------------------------------------------------------- */
 
 export interface InsightInput {
-  scale: "us" | "eu";
+  scale: "us" | "eu" | "in";
   rangeDays: number;
   days: readonly DayStat[];
   profile: readonly HourCell[];
@@ -273,7 +273,7 @@ export function buildInsights({ scale, rangeDays, days, profile, change }: Insig
 
   const full = days.filter((d) => !d.partial && d.mean !== null);
   if (full.length >= 3) {
-    const cats = scale === "us" ? US_CATEGORIES : EU_CATEGORIES;
+    const cats = categoriesFor(scale);
     const threshold = cats.find((c) => c.rank === 3);
     if (threshold) {
       const bad = full.filter((d) => getCategory(d.mean!, scale).rank >= 3).length;

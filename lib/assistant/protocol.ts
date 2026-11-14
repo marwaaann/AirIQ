@@ -22,7 +22,8 @@ export const ChatContextSchema = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lon: z.number().min(-180).max(180).optional(),
   profile: z.enum(PROFILE_IDS).optional(),
-  scale: z.enum(["us", "eu"]).optional(),
+  scale: z.enum(["us", "eu", "in"]).optional(),
+  source: z.enum(["auto", "station", "model"]).optional(),
 });
 export type ChatContext = z.infer<typeof ChatContextSchema>;
 

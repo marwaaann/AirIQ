@@ -4,7 +4,7 @@ import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveCont
 
 import { categoryBands } from "@/components/charts/category-bands";
 import { niceYMax, useChartColors } from "@/components/charts/chart-kit";
-import { getCategory } from "@/lib/aqi-categories";
+import { formatIndex, getCategory, SCALE_SHORT } from "@/lib/aqi-categories";
 import { formatInZone } from "@/lib/format";
 import type { AqiScale } from "@/types/air";
 
@@ -17,13 +17,14 @@ export interface ForecastRow {
 }
 
 function TooltipBody({ row, scale, tz }: { row: ForecastRow; scale: AqiScale; tz: string }) {
-  const unit = scale === "us" ? "US AQI" : "EU AQI";
+  const unit = SCALE_SHORT[scale];
   const cat = row.official !== null ? getCategory(row.official, scale) : null;
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
       <p className="font-semibold">{formatInZone(row.t, tz, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} local</p>
       <p>
-        Official: <strong>{row.official ?? "n/a"}</strong> {unit}
+        Official (model): <strong>{formatIndex(row.official, scale)}</strong> {unit}
+        {row.official !== null && row.official > 500 ? ` (computed ${Math.round(row.official)})` : ""}
         {cat ? ` (${cat.label})` : ""}
       </p>
       <p>Official PM2.5 sub-index: {row.officialPm25 ?? "n/a"}</p>

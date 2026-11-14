@@ -3,6 +3,7 @@
  */
 
 import { euPm25Index, pm25Index, trailingMean } from "./aqi.ts";
+import { naqiSubIndex, windowMean } from "./naqi.ts";
 import { localParts } from "./time.ts";
 
 const isNum = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
@@ -119,14 +120,23 @@ export function agreement(official: readonly (number | null)[], model: readonly 
  * Convert PM2.5 predictions to an index on the given scale, using the same
  * convention as Open-Meteo's sub-indices:
  *   US: EPA index of the trailing 24-h mean (observed tail + predictions),
- *   EU: EEA index of the hourly value.
+ *   EU: EEA index of the hourly value,
+ *   IN: CPCB NAQI PM2.5 sub-index of the trailing 24-h mean (≥ 16 h of data).
  */
 export function pm25SeriesToIndex(
   observedTail: readonly (number | null)[],
   predictions: readonly number[],
-  scale: "us" | "eu",
+  scale: "us" | "eu" | "in",
 ): (number | null)[] {
   if (scale === "eu") return predictions.map((v) => euPm25Index(v));
+  if (scale === "in") {
+    const series: (number | null)[] = [...observedTail.slice(-23), ...predictions];
+    const offset = series.length - predictions.length;
+    return predictions.map((_, k) => {
+      const m = windowMean(series, offset + k, 24);
+      return m === null ? null : naqiSubIndex("pm2_5", m.mean);
+    });
+  }
   const series: (number | null)[] = [...observedTail.slice(-23), ...predictions];
   const offset = series.length - predictions.length;
   return predictions.map((_, k) => {

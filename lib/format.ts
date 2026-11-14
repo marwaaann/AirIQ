@@ -62,3 +62,33 @@ export function formatLocalDate(date: string, opts: Intl.DateTimeFormatOptions =
   const [y, m, d] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
 }
+
+const zoneNameCache = new Map<string, string>();
+
+/** Short zone name for a place: "IST", "GMT", "CET"…; falls back to "GMT+5:30" when no abbreviation exists. */
+export function zoneAbbrev(timeZone: string, at: number = Date.now()): string {
+  const key = `${timeZone}|${new Date(at).toISOString().slice(0, 10)}`;
+  const hit = zoneNameCache.get(key);
+  if (hit) return hit;
+  let best = "";
+  for (const locale of ["en-GB", "en-US", "en-IN", "en-AU"]) {
+    try {
+      const name = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: "short" }).formatToParts(new Date(at)).find((p) => p.type === "timeZoneName")?.value ?? "";
+      if (name && !/^(GMT|UTC)[+-]/.test(name)) {
+        best = name;
+        break;
+      }
+      best ||= name;
+    } catch {
+      // Unknown zone: try the next locale.
+    }
+  }
+  const out = best || "UTC";
+  zoneNameCache.set(key, out);
+  return out;
+}
+
+/** "18:00 IST" in the place's own zone. */
+export function placeClock(iso: string, timeZone: string): string {
+  return `${formatInZone(iso, timeZone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} ${zoneAbbrev(timeZone, Date.parse(iso))}`;
+}

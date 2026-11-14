@@ -113,7 +113,7 @@ describe("forecast rules", () => {
     const r = rule({ trigger: { type: "forecast", hours: 24 } });
     let out = evaluateRule(r, null, forecast, NOW);
     assert.equal(out.events.length, 1);
-    assert.equal(out.events[0].message, "Forecast: US AQI above 150 in Delhi on Tue 14:00–18:00 local time (official forecast).");
+    assert.equal(out.events[0].message, "Forecast: US AQI above 150 in Delhi on Tue 14:00–18:00 local time (official model forecast; it may under-estimate where stations read higher).");
     assert.equal(out.events[0].kind, "forecast");
     // Re-run: no duplicate.
     out = evaluateRule(r, null, forecast, NOW + 10 * 60_000, out.state);

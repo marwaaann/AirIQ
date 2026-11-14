@@ -35,6 +35,10 @@ function air(usAqi: number | null, euAqi: number | null): AirResponse {
       euSubIndices: { pm2_5: euAqi ?? 0 },
       dominantUs: "pm2_5",
       dominantEu: "pm2_5",
+      inAqi: usAqi === null ? null : Math.round(usAqi * 1.6),
+      inSubIndices: { pm2_5: usAqi === null ? 0 : Math.round(usAqi * 1.6) },
+      dominantIn: "pm2_5",
+      inReason: null,
     },
     epa: { aqi2024: usAqi, aqi2012: usAqi, dominant: "pm2_5", subIndices: {}, pm25Mean24h: 120 },
     recent: { latitude: 28.65, longitude: 77.23, timezone: "Asia/Kolkata", utcOffsetSeconds: 19800, points: [] },
@@ -79,6 +83,8 @@ function deps(over: Partial<AssistantDataLayer> = {}): AssistantDataLayer {
     currentAir: async (lat) => (lat > 40 ? air(78, 40) : air(182, 105)),
     airSeries: async (_lat, _lon, past, fc) => series(past, fc),
     sunTimes: async () => [{ sunrise: "2026-11-10T01:09:00Z", sunset: "2026-11-10T11:59:00Z" }],
+    // No ground stations unless a test provides them: the headline is the model.
+    nearbyStations: async () => ({ status: "not-configured", source: "none", stations: [], radiusKm: 15, stationNaqi: null, fetchedAt: new Date(NOW).toISOString() }),
     now: () => NOW,
     ...over,
   };
@@ -122,8 +128,13 @@ describe("tools", () => {
     const r = await runTool("get_current_aqi", { lat: 28.65, lon: 77.23, city: "Delhi" }, deps());
     assert.equal(r.ok, true);
     const res = r.result as Record<string, unknown>;
-    assert.deepEqual(res.usAqi, { value: 182, category: "Unhealthy", mainPollutant: "PM2.5" });
-    assert.equal((res.europeanAqi as { value: number }).value, 105);
+    const model = res.model as Record<string, Record<string, unknown>>;
+    assert.deepEqual(model.usAqi, { value: 182, display: "182", category: "Unhealthy", beyondIndex: false, mainPollutant: "PM2.5" });
+    assert.equal(model.europeanAqi.value, 105);
+    // No stations configured: the headline is the model, and says so.
+    const head = res.headline as { source: string; aqi: { value: number } };
+    assert.equal(head.source, "model");
+    assert.equal(head.aqi.value, 182);
     assert.equal(res.timezone, "Asia/Kolkata");
     assert.equal(res.source, "Open-Meteo / CAMS");
     assert.equal((res.dataTime as { local: string }).local, "Tue 10 Nov 10:30");
@@ -162,8 +173,9 @@ describe("tools", () => {
       },
       deps(),
     );
-    const ranked = (r.result as { rankedCleanestFirst: { name: string; usAqi: number; rank: number; usMainPollutant: string; europeanMainPollutant: string }[] })
-      .rankedCleanestFirst;
+    const ranked = (
+      r.result as { rankedCleanestFirst: { name: string; usAqi: number; headlineUsAqi: number; rank: number; usMainPollutant: string; europeanMainPollutant: string }[] }
+    ).rankedCleanestFirst.map((x) => ({ ...x, usAqi: x.headlineUsAqi }));
     // Regression: both scales' main pollutant are returned (real Gemini guessed the EU one when it was missing).
     assert.equal(ranked[0].usMainPollutant, "PM2.5");
     assert.equal(ranked[0].europeanMainPollutant, "PM2.5");

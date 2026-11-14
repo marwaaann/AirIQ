@@ -3,12 +3,16 @@ import "server-only";
 import { pm25Index } from "@/lib/aqi";
 import type { Bounds } from "@/lib/grid";
 import { fetchJson } from "@/lib/http";
+import { haversineKm, type StationNaqi } from "@/lib/headline-source";
 import {
+  OpenAqHourItemSchema,
+  OpenAqHoursResponseSchema,
   OpenAqLatestItemSchema,
   OpenAqLatestResponseSchema,
   OpenAqLocationSchema,
   OpenAqLocationsResponseSchema,
 } from "@/lib/schemas";
+import { naqiFromSensorHours, type SensorHours } from "@/lib/station-naqi";
 import type { Station } from "@/types/air";
 
 const OPENAQ_BASE = "https://api.openaq.org/v3";
@@ -116,4 +120,70 @@ export async function getOpenAqStations(b: Bounds, apiKey: string): Promise<Stat
     }
   });
   return stations.filter((s): s is Station => s !== null);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Station-based India NAQI (Phase 9)                                         */
+/* ------------------------------------------------------------------------- */
+
+const NAQI_PARAMETERS = new Set(["pm25", "pm10", "no2", "so2", "o3", "co", "nh3"]);
+const FRESH_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * NAQI from the nearest fresh OpenAQ station within `radiusKm` that has PM2.5
+ * or PM10, computed from its own hourly concentrations (last 26 h). Returns
+ * null when no station qualifies or CPCB's minimum-data rules are not met.
+ */
+export async function getOpenAqStationNaqi(lat: number, lon: number, apiKey: string, radiusKm = 15): Promise<StationNaqi | null> {
+  const headers = { "X-API-Key": apiKey };
+  const coords = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+  const radius = String(Math.round(Math.min(25, radiusKm) * 1000));
+  const body = await fetchJson(`${OPENAQ_BASE}/locations?${new URLSearchParams({ coordinates: coords, radius, limit: "25" })}`, {
+    upstream: "OpenAQ",
+    schema: OpenAqLocationsResponseSchema,
+    headers,
+    cacheKey: `openaq:near:${coords}:${radius}`,
+  });
+  const now = Date.now();
+  const candidates = body.results
+    .map((r) => OpenAqLocationSchema.safeParse(r))
+    .filter((p) => p.success)
+    .map((p) => p.data)
+    .filter((l) => l.coordinates.latitude !== null && l.coordinates.longitude !== null)
+    .filter((l) => {
+      const t = Date.parse(l.datetimeLast?.utc ?? "");
+      return Number.isFinite(t) && now - t <= FRESH_MS;
+    })
+    .filter((l) => l.sensors.some((s) => s.parameter.name === "pm25" || s.parameter.name === "pm10"))
+    .map((l) => ({ l, d: haversineKm(lat, lon, l.coordinates.latitude as number, l.coordinates.longitude as number) }))
+    .filter((x) => x.d <= radiusKm)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 2);
+
+  const from = new Date(now - 26 * 60 * 60 * 1000).toISOString();
+  for (const { l, d } of candidates) {
+    const sensors = l.sensors.filter((s) => NAQI_PARAMETERS.has(s.parameter.name));
+    const hours = await mapLimit(sensors, CONCURRENCY, async (s): Promise<SensorHours | null> => {
+      try {
+        const res = await fetchJson(`${OPENAQ_BASE}/sensors/${s.id}/hours?${new URLSearchParams({ datetime_from: from, limit: "48" })}`, {
+          upstream: "OpenAQ",
+          schema: OpenAqHoursResponseSchema,
+          headers,
+          cacheKey: `openaq:hours:${s.id}:${from.slice(0, 13)}`,
+        });
+        const items = res.results
+          .map((r) => OpenAqHourItemSchema.safeParse(r))
+          .filter((p) => p.success)
+          .map((p) => ({ time: p.data.period.datetimeTo.utc, value: p.data.value }));
+        return { parameter: s.parameter.name, units: s.parameter.units, hours: items };
+      } catch {
+        return null;
+      }
+    });
+    const { result, observedAt } = naqiFromSensorHours(hours.filter((h): h is SensorHours => h !== null));
+    if (result.status === "ok" && result.aqi !== null && observedAt && now - Date.parse(observedAt) <= FRESH_MS) {
+      return { value: result.aqi, stationName: l.name || l.locality || `OpenAQ location ${l.id}`, distanceKm: d, observedAt };
+    }
+  }
+  return null;
 }

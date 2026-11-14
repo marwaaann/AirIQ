@@ -1,14 +1,11 @@
 "use client";
 
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { useAdvice } from "@/components/health/advice-common";
 import { useProfile } from "@/hooks/useProfile";
-import type { AqiScale } from "@/types/air";
-import type { AirResponse } from "@/types/api";
+import type { AdviceResult } from "@/lib/health-advice";
 
-/** Compact health advice for the Overview tab: headline + top 3 recommendations. */
-export function AdviceCard({ air, scale, onMore }: { air: AirResponse; scale: AqiScale; onMore: () => void }) {
-  const advice = useAdvice(air, scale);
+/** Compact health advice for the Overview tab: headline + top 3 recommendations, for the headline in effect. */
+export function AdviceCard({ advice, sourceText, onMore }: { advice: AdviceResult | null; sourceText: string | null; onMore: () => void }) {
   const [profile] = useProfile();
   if (!advice) return null;
   return (
@@ -20,6 +17,7 @@ export function AdviceCard({ air, scale, onMore }: { air: AirResponse; scale: Aq
         <CategoryBadge category={advice.category} size="sm" />
       </div>
       <p className="font-medium">{advice.headline.text}</p>
+      {sourceText ? <p className="text-xs text-muted">Based on: {sourceText}</p> : null}
       <ul className="flex flex-col gap-1.5 text-sm">
         {advice.top.map((r) => (
           <li key={r.id} className="flex gap-2">

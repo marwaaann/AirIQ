@@ -10,7 +10,8 @@ import { HourOfDayHeatmap } from "@/components/history/HourOfDayHeatmap";
 import { EmptyState, ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { useUrlParam } from "@/hooks/useUrlParam";
-import { getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, type PollutantKey } from "@/lib/aqi-categories";
+import { formatIndex, getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_SHORT, type PollutantKey } from "@/lib/aqi-categories";
+import { pointIndex, pointSubIndices } from "@/lib/aqi-display";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { formatLocalDate } from "@/lib/format";
 import { staleMetaOf } from "@/lib/stale";
@@ -48,7 +49,7 @@ function DayValue({ day, scale }: { day: DayStat | null; scale: AqiScale }) {
   if (!day || day.mean === null) return <span className="text-muted">n/a</span>;
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <span className="font-mono">{Math.round(day.mean)}</span>
+      <span className="font-mono">{formatIndex(day.mean, scale)}</span>
       <CategoryBadge category={getCategory(day.mean, scale)} size="sm" />
     </span>
   );
@@ -70,8 +71,8 @@ export default function HistoryPanel({ lat, lon, scale }: { lat: number; lon: nu
     const pts = data.series.points;
     const raw: RawHour[] = pts.map((p) => ({
       time: p.time,
-      value: scale === "us" ? p.usAqi : p.euAqi,
-      subs: scale === "us" ? p.usSubIndices : p.euSubIndices,
+      value: pointIndex(p, scale),
+      subs: pointSubIndices(p, scale),
     }));
     const hours = toLocalHours(raw, tz);
     const endDate = pts.length ? localParts(pts[pts.length - 1].time, tz).date : localParts(data.fetchedAt, tz).date;
@@ -107,7 +108,7 @@ export default function HistoryPanel({ lat, lon, scale }: { lat: number; lon: nu
     };
   }, [data, scale, range, metric]);
 
-  const scaleLabel = scale === "us" ? "US AQI" : "EU AQI";
+  const scaleLabel = SCALE_SHORT[scale];
 
   return (
     <section aria-labelledby="history-title" className="flex flex-col gap-5">

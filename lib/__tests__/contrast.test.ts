@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { EU_CATEGORIES, US_CATEGORIES } from "../aqi-categories.ts";
+import { EU_CATEGORIES, IN_CATEGORIES, US_CATEGORIES } from "../aqi-categories.ts";
 
 /** WCAG 2.x relative luminance of a #rrggbb colour. */
 function luminance(hex: string): number {
@@ -37,6 +37,7 @@ describe("AQI category colours (WCAG AA)", () => {
   for (const [scale, cats] of [
     ["US", US_CATEGORIES],
     ["EU", EU_CATEGORIES],
+    ["India NAQI", IN_CATEGORIES],
   ] as const) {
     for (const c of cats) {
       it(`${scale} ${c.label}: badge text ${c.textColor} on ${c.color} is at least 4.5:1`, () => {
@@ -49,7 +50,7 @@ describe("AQI category colours (WCAG AA)", () => {
   it("keeps the official category background colours", () => {
     assert.deepEqual(
       US_CATEGORIES.map((c) => c.color),
-      ["#00e400", "#ffff00", "#ff7e00", "#ff0000", "#8f3f97", "#7e0023"],
+      ["#00e400", "#ffff00", "#ff7e00", "#ff0000", "#8f3f97", "#7e0023", "#3d000f"],
     );
     assert.deepEqual(
       EU_CATEGORIES.map((c) => c.color),
@@ -58,9 +59,19 @@ describe("AQI category colours (WCAG AA)", () => {
   });
 
   it("every category keeps a distinct pattern, so colour is never the only cue", () => {
-    for (const cats of [US_CATEGORIES, EU_CATEGORIES]) {
+    for (const cats of [US_CATEGORIES, EU_CATEGORIES, IN_CATEGORIES]) {
       assert.equal(new Set(cats.map((c) => c.pattern)).size, cats.length);
     }
+  });
+
+  it("the US beyond-index band is visually distinct from Hazardous (colour, pattern) and keeps its rank", () => {
+    const haz = US_CATEGORIES.find((c) => c.key === "hazardous")!;
+    const beyond = US_CATEGORIES.find((c) => c.key === "beyond-index")!;
+    assert.notEqual(beyond.color, haz.color);
+    assert.notEqual(beyond.pattern, haz.pattern);
+    assert.equal(beyond.rank, haz.rank);
+    // The two maroons must differ enough to tell apart (≥ 1.5:1 between them).
+    assert.ok(contrast(beyond.color, haz.color) >= 1.5, contrast(beyond.color, haz.color).toFixed(2));
   });
 });
 

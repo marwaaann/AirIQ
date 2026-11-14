@@ -6,16 +6,17 @@ import { CategoryBadge } from "@/components/CategoryBadge";
 import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
-import { useAir } from "@/hooks/useCity";
-import { headline } from "@/lib/aqi-display";
+import { useHeadline } from "@/hooks/useHeadline";
+import { formatIndex, getCategory, SCALE_NAME } from "@/lib/aqi-categories";
 import { errorMessage } from "@/lib/fetcher";
 import { staleMetaOf } from "@/lib/stale";
 import type { SavedCity } from "@/types/city";
 
-/** Compact live-AQI card for favorites and popular cities. */
+/** Compact live-AQI card for favorites and popular cities, showing the same headline as the city page. */
 export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: () => void }) {
   const [scale] = useAqiScale();
-  const { data, error, isLoading, isValidating, mutate } = useAir(city.latitude, city.longitude);
+  const { air, headline: hs } = useHeadline(city.latitude, city.longitude, scale);
+  const { data, error, isLoading, isValidating, mutate } = air;
 
   if (error && !data) {
     return (
@@ -38,7 +39,9 @@ export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: ()
 
   if (!data) return null;
 
-  const h = headline(data.current, scale);
+  const value = hs?.value ?? null;
+  const h = { value, category: value !== null ? getCategory(value, scale) : null, scaleLabel: SCALE_NAME[scale] };
+  const source = hs ? (hs.source === "stations-median" ? `${hs.stationCount} stations` : hs.source === "station" ? "Station" : "Model") : null;
   return (
     <div className="group relative h-full">
       {/* No prefetch: prefetching a city page renders it on the server, which costs
@@ -60,9 +63,16 @@ export function CityAqiCard({ city, onRemove }: { city: SavedCity; onRemove?: ()
         {/* The visible text is the link's name (WCAG 2.5.3); the scale is added for screen readers. */}
         <p className="font-mono text-4xl font-bold tabular-nums">
           <span className="sr-only">{h.scaleLabel} </span>
-          {h.value !== null ? Math.round(h.value) : "n/a"}
+          {formatIndex(h.value, scale)}
         </p>
-        {h.category ? <CategoryBadge category={h.category} size="sm" /> : <span className="text-xs text-muted">No index</span>}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {h.category ? <CategoryBadge category={h.category} size="sm" /> : <span className="text-xs text-muted">{scale === "in" ? "Not enough data" : "No index"}</span>}
+          {source ? (
+            <span className="text-[11px] text-muted" data-testid="card-source">
+              {source}
+            </span>
+          ) : null}
+        </span>
         <StaleNotice compact meta={staleMetaOf(data)} timeZone={data.current.timezone} />
       </Link>
       {onRemove ? (

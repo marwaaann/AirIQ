@@ -15,12 +15,17 @@ import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { forecastUrl, historyUrl, useAir } from "@/hooks/useCity";
+import { dataSourceStore } from "@/hooks/useDataSource";
+import { computeHeadline, useNearbyStations } from "@/hooks/useHeadline";
+import { useNow } from "@/hooks/useNow";
 import { useProfile } from "@/hooks/useProfile";
-import { getCategory, POLLUTANT_INFO, POLLUTANT_ORDER } from "@/lib/aqi-categories";
-import { accentStyle, headline, SCALE_LABEL } from "@/lib/aqi-display";
+import { beyondIndexLabel, formatIndex, getCategory, isBeyondIndex, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_SHORT } from "@/lib/aqi-categories";
+import { accentStyle, headline, pointIndex, pointSubIndices, SCALE_LABEL } from "@/lib/aqi-display";
+import { DATA_SOURCE_LABEL, headlineSubtitle, sourceLabel } from "@/lib/headline-source";
+import { useStoredValue } from "@/lib/storage";
 import { apiFetch, errorMessage } from "@/lib/fetcher";
 import { dailyRanges } from "@/lib/forecast-insights";
-import { formatConcentration, formatLocalDate, formatPlaceTime } from "@/lib/format";
+import { formatConcentration, formatLocalDate, formatPlaceTime, placeClock } from "@/lib/format";
 import { dailyStats, toLocalHours } from "@/lib/history-stats";
 import { PROFILES } from "@/lib/profiles";
 import { findSafeWindows } from "@/lib/safe-windows";
@@ -54,7 +59,7 @@ function Section({ title, children, id }: { title: string; children: React.React
   );
 }
 
-/** Print-friendly, shareable report. ?scale= and ?profile= override the saved settings for this view only. */
+/** Print-friendly, shareable report. ?scale=, ?profile= and ?source= override the saved settings for this view only. */
 export function CityReport({ place }: { place: ReportPlace }) {
   const params = useSearchParams();
   const shared = parseSharedPrefs(params);
@@ -62,19 +67,26 @@ export function CityReport({ place }: { place: ReportPlace }) {
   const rangeDays = Number(range) as 7 | 30 | 90;
   const [savedScale] = useAqiScale();
   const [savedProfile] = useProfile();
+  const [savedSource] = useStoredValue(dataSourceStore);
   const scale = shared.scale ?? savedScale;
   const profile = PROFILES[shared.profile ?? savedProfile.id];
+  const mode = shared.source ?? savedSource;
+  const now = useNow(60_000);
 
   const air = useAir(place.latitude, place.longitude);
+  const near = useNearbyStations(place.latitude, place.longitude);
+  const hs = air.data ? computeHeadline(air.data, near.data, near.error, scale, mode, now) : null;
   const hist = useSWR<HistoryResponse, Error>(historyUrl(place.latitude, place.longitude, rangeDays), apiFetch, { revalidateOnFocus: false });
   const fc = useSWR<ForecastResponse, Error>(forecastUrl(place.latitude, place.longitude), apiFetch, { revalidateOnFocus: false });
-  const advice = useAdvice(air.data, scale, profile.id);
+  const advice = useAdvice(air.data, scale, hs, profile.id);
   const reportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState<"pdf" | "png" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const h = air.data ? headline(air.data.current, scale) : null;
-  const unit = scale === "us" ? "US AQI" : "EU AQI";
+  const value = hs?.value ?? null;
+  const category = value !== null ? getCategory(value, scale) : null;
+  const unit = SCALE_SHORT[scale];
 
   const historyDays = useMemo(() => {
     if (!hist.data) return null;
@@ -83,7 +95,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
     const end = pts.length ? localParts(pts[pts.length - 1].time, tz).date : localParts(hist.data.fetchedAt, tz).date;
     const inRange = new Set(datesEnding(end, rangeDays));
     const hours = toLocalHours(
-      pts.map((p) => ({ time: p.time, value: scale === "us" ? p.usAqi : p.euAqi, subs: scale === "us" ? p.usSubIndices : p.euSubIndices })),
+      pts.map((p) => ({ time: p.time, value: pointIndex(p, scale), subs: pointSubIndices(p, scale) })),
       tz,
     ).filter((x) => inRange.has(x.date));
     return dailyStats(hours);
@@ -92,7 +104,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
   const forecast = useMemo(() => {
     if (!fc.data) return null;
     const tz = fc.data.official.timezone;
-    const pts = fc.data.official.points.map((p) => ({ time: p.time, value: scale === "us" ? p.usAqi : p.euAqi }));
+    const pts = fc.data.official.points.map((p) => ({ time: p.time, value: pointIndex(p, scale) }));
     const windows = findSafeWindows({
       points: pts,
       threshold: profile.defaultThreshold[scale],
@@ -145,8 +157,8 @@ export function CityReport({ place }: { place: ReportPlace }) {
         </button>
         <ShareButton
           title={`Air quality report: ${place.name}`}
-          text={h?.value !== null && h?.value !== undefined ? `${place.name}: ${unit} ${h.value} (${h.category?.label ?? ""}) · AirIQ` : `Air quality in ${place.name} · AirIQ`}
-          getUrl={() => cityShareUrl(window.location.origin, { slug: place.slug, tab: "overview", range, scale, profile: profile.id }, "report")}
+          text={value !== null && category && hs ? `${place.name}: ${unit} ${formatIndex(value, scale)} (${category.label}; ${sourceLabel(hs)}) · AirIQ` : `Air quality in ${place.name} · AirIQ`}
+          getUrl={() => cityShareUrl(window.location.origin, { slug: place.slug, tab: "overview", range, scale, profile: profile.id, source: mode }, "report")}
         />
       </div>
       {exportError ? (
@@ -155,18 +167,20 @@ export function CityReport({ place }: { place: ReportPlace }) {
         </p>
       ) : null}
 
-      <div ref={reportRef} className="report-root flex flex-col gap-4 bg-bg p-1" style={accentStyle(h?.category ?? null)} data-testid="report">
+      <div ref={reportRef} className="report-root flex flex-col gap-4 bg-bg p-1" style={accentStyle(category)} data-testid="report">
         <header className="flex flex-col gap-1 border-b-4 border-accent pb-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">AirIQ air-quality report</p>
           <h1 className="text-3xl font-bold tracking-tight">{place.name}</h1>
           <p className="text-sm text-muted">
             {place.subtitle ? `${place.subtitle} · ` : ""}
-            {place.latitude.toFixed(3)}, {place.longitude.toFixed(3)} · {SCALE_LABEL[scale]} · {profile.label} profile
+            {place.latitude.toFixed(3)}, {place.longitude.toFixed(3)} · {SCALE_LABEL[scale]} · {profile.label} profile · data source{" "}
+            {DATA_SOURCE_LABEL[mode]}
           </p>
           {air.data ? (
             <p className="text-sm" data-testid="report-timestamp">
-              Data for <strong>{formatPlaceTime(air.data.current.time, air.data.current.timezone)}</strong> (model hour), fetched{" "}
-              {new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)} UTC.
+              Data for <strong>{formatPlaceTime(hs?.observedAt ?? air.data.current.time, air.data.current.timezone)}</strong> (
+              {hs && hs.source !== "model" ? "station observation" : "model hour"}), fetched {new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)}{" "}
+              UTC.
             </p>
           ) : null}
         </header>
@@ -190,17 +204,32 @@ export function CityReport({ place }: { place: ReportPlace }) {
               <Section title="Current air quality" id="r-now">
                 <div className="flex items-center gap-3">
                   <span className="text-5xl font-bold" data-testid="report-aqi">
-                    {h.value ?? "n/a"}
+                    {formatIndex(value, scale)}
                   </span>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted">{h.scaleLabel}</span>
-                    {h.category ? <CategoryBadge category={h.category} /> : null}
+                    {category ? <CategoryBadge category={category} /> : null}
                   </div>
                 </div>
-                <p className="text-sm">Main pollutant: {h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</p>
-                {h.category ? <p className="text-sm text-muted">{h.category.health}</p> : null}
+                {value !== null && isBeyondIndex(value, scale) ? <p className="text-sm font-bold">Beyond scale: {beyondIndexLabel(value, scale)}</p> : null}
+                {hs ? (
+                  <p className="text-sm" data-testid="report-source">
+                    Source: <strong>{sourceLabel(hs)}</strong>.{" "}
+                    {headlineSubtitle(hs, (iso) => placeClock(iso, air.data!.current.timezone), (v) => formatIndex(v, scale))}
+                    {hs.source !== "model" && hs.modelValue !== null ? ` · model estimate ${formatIndex(hs.modelValue, scale)}` : ""}.
+                  </p>
+                ) : null}
+                {hs?.stationNote ? <p className="text-xs text-muted">{hs.stationNote}</p> : null}
+                {scale === "in" ? (
+                  <p className="text-xs text-muted">
+                    {value === null ? `Not enough data. ${air.data.current.inReason ?? ""} ` : ""}NAQI computed by AirIQ from{" "}
+                    {hs?.source === "station" ? "station" : "model"} concentrations (CPCB method); it may differ from CPCB&rsquo;s official bulletin.
+                  </p>
+                ) : null}
+                <p className="text-sm">Main pollutant (model): {h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</p>
+                {category ? <p className="text-sm text-muted">{category.health}</p> : null}
               </Section>
-              <Section title="Pollutants" id="r-poll">
+              <Section title="Pollutants (model concentrations)" id="r-poll">
                 <table className="w-full text-left text-sm">
                   <thead className="text-xs text-muted">
                     <tr>
@@ -253,7 +282,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
             </Section>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Section title="5-day forecast (official CAMS)" id="r-fc">
+              <Section title="5-day forecast (official CAMS model)" id="r-fc">
                 {fc.error && !fc.data ? (
                   <ErrorState compact title="Couldn't load the forecast" message={errorMessage(fc.error)} onRetry={() => void fc.mutate()} />
                 ) : !forecast ? (
@@ -285,7 +314,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
                               {d.n < 24 ? <span className="text-xs font-normal text-muted"> ({d.n} h)</span> : null}
                             </th>
                             <td className="py-1 font-mono">
-                              {Math.round(d.min)}–{Math.round(d.max)}
+                              {formatIndex(d.min, scale)}–{formatIndex(d.max, scale)}
                             </td>
                             <td className="py-1">
                               <span className="inline-flex items-center gap-1.5">
@@ -326,7 +355,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
                   <ul className="text-sm" data-testid="report-windows">
                     {forecast.windows.windows.map((w) => (
                       <li key={w.start}>
-                        {w.label} · {unit} {Math.round(w.min)}–{Math.round(w.max)}
+                        {w.label} · {unit} {formatIndex(w.min, scale)}–{formatIndex(w.max, scale)}
                       </li>
                     ))}
                   </ul>
@@ -344,11 +373,18 @@ export function CityReport({ place }: { place: ReportPlace }) {
             <footer className="flex flex-col gap-1 border-t border-border pt-3 text-xs text-muted" data-testid="report-sources">
               <p>
                 <strong className="text-text">Sources:</strong> Open-Meteo Air Quality API (Copernicus CAMS model data) for current values, history and the official forecast;
-                Open-Meteo Geocoding; Berkeley Earth (cigarette equivalence). AQI categories per {scale === "us" ? "US EPA (2024 breakpoints)" : "the EEA European Air Quality Index"};
-                health guidance per {scale === "us" ? "US EPA AirNow" : "EEA"} with WHO 2021 guideline values.
+                ground stations from {near.data?.source === "openaq" ? "OpenAQ" : "WAQI (aqicn.org)"} where available; Open-Meteo Geocoding; Berkeley Earth
+                (cigarette equivalence). Categories per{" "}
+                {scale === "us" ? "US EPA (2024 breakpoints)" : scale === "eu" ? "the EEA European Air Quality Index" : "CPCB's National AQI (computed by AirIQ)"};
+                health guidance per {scale === "us" ? "US EPA AirNow" : scale === "eu" ? "EEA" : "CPCB health statements and EPA activity guidance"} with WHO 2021
+                guideline values. Values above an index&rsquo;s top are shown as &ldquo;500+&rdquo; with the computed number.
               </p>
               <p>
-                <strong className="text-text">{DISCLAIMER}</strong> Values are model estimates for the location, not station measurements. Generated by AirIQ
+                <strong className="text-text">{DISCLAIMER}</strong>{" "}
+                {hs && hs.source !== "model"
+                  ? "The headline comes from ground-station measurements; pollutant values, history and the forecast are model estimates."
+                  : "Values are model estimates for the location, not station measurements."}{" "}
+                Generated by AirIQ
                 {air.data ? ` from data fetched ${new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : ""}.
               </p>
             </footer>

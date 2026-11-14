@@ -2,8 +2,8 @@ import "server-only";
 
 import type { Bounds } from "@/lib/grid";
 import { fetchJson, UpstreamError } from "@/lib/http";
-import { WaqiBoundsItemSchema, WaqiBoundsResponseSchema } from "@/lib/schemas";
-import type { Station } from "@/types/air";
+import { WaqiBoundsItemSchema, WaqiBoundsResponseSchema, WaqiFeedResponseSchema } from "@/lib/schemas";
+import type { Pollutant, Station } from "@/types/air";
 
 const WAQI_BASE = "https://api.waqi.info";
 
@@ -60,4 +60,48 @@ export async function getWaqiStations(b: Bounds, token: string): Promise<Station
     });
   }
   return stations;
+}
+
+/** WAQI's pollutant codes → AirIQ keys (only the six AirIQ shows). */
+const WAQI_POLLUTANT: Record<string, Pollutant> = {
+  pm25: "pm2_5",
+  pm10: "pm10",
+  no2: "nitrogen_dioxide",
+  so2: "sulphur_dioxide",
+  o3: "ozone",
+  co: "carbon_monoxide",
+};
+
+export interface WaqiStationDetail {
+  id: string;
+  /** Dominant pollutant as WAQI states it (null when it does not). */
+  dominant: Pollutant | null;
+  observedAt: string | null;
+  /**
+   * WAQI's per-pollutant values. These are US-EPA-scale INDEX values, not
+   * concentrations, and must never be shown or used as µg/m³.
+   */
+  indexByPollutant: Partial<Record<Pollutant, number>>;
+}
+
+/** One station's feed (/feed/@uid/): dominant pollutant and observation time for the map popup. */
+export async function getWaqiStationDetail(uid: number, token: string): Promise<WaqiStationDetail> {
+  const url = `${WAQI_BASE}/feed/@${uid}/?${new URLSearchParams({ token })}`;
+  const body = await fetchJson(url, { upstream: "WAQI", schema: WaqiFeedResponseSchema, cacheKey: `waqi:feed:${uid}` });
+  if (body.status === "error") {
+    const reason = typeof body.data === "string" ? body.data : "request rejected";
+    throw new UpstreamError("WAQI", `WAQI: ${reason}`);
+  }
+  const d = body.data;
+  const indexByPollutant: Partial<Record<Pollutant, number>> = {};
+  for (const [k, v] of Object.entries(d.iaqi ?? {})) {
+    const key = WAQI_POLLUTANT[k];
+    if (key && Number.isFinite(v.v)) indexByPollutant[key] = Math.round(v.v);
+  }
+  return {
+    id: `waqi-${uid}`,
+    dominant: d.dominentpol ? (WAQI_POLLUTANT[d.dominentpol] ?? null) : null,
+    observedAt: toIso(d.time?.iso),
+    indexByPollutant,
+  };
 }

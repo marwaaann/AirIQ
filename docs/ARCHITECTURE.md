@@ -75,7 +75,11 @@ Request budget, measured on a cold server (Phase 8): the home page makes 6 Open-
 
 ## 4. AQI logic
 
-- **Headline numbers** are Open-Meteo's `us_aqi` and `european_aqi`, so the gauge, the map and the alerts agree with the source.
+- **Headline selection** (`lib/headline-source.ts`, pure, unit-tested) combines `/api/air` (model) with `/api/stations?lat&lon` (stations within 15 km, nearest first, distance and observation time; `lib/nearby.ts`). Auto: median of ≥ 3 stations observed in the last 3 h → else the nearest fresh station within 10 km → else the model. "Nearest station" and "Model only" modes come from `hooks/useDataSource.ts` (saved in storage; `?source=` overrides for a shared view). It returns `{ source, value, scale, stationCount, highest, nearest, observedAt, modelValue, reason, divergence, stationNote }`. `hooks/useHeadline.ts` (`computeHeadline`) is the one place the UI, compare, report and alert engine get "the" number; the assistant calls the same `selectHeadline` on the server.
+- **No conversion between scales.** WAQI gives US AQI index values only, so on the European scale the headline is the model, and NAQI uses concentrations (OpenAQ station hours via `lib/station-naqi.ts`, else the model's). A failing or missing station feed returns `status: "error" | "not-configured"` and the UI shows "No nearby station data".
+- **Model numbers** are Open-Meteo's `us_aqi` and `european_aqi`, plus AirIQ's NAQI.
+- **India NAQI** (`lib/naqi.ts`): CPCB breakpoints for PM10, PM2.5, NO₂, SO₂, CO (mg/m³), O₃ and NH₃; 24-h means (8-h for CO/O₃); ≥ 16 of 24 h (6 of 8) per sub-index; ≥ 3 pollutants including PM2.5 or PM10. Computed server-side for every series point (`lib/openmeteo.ts` → `inAqi`, `inSubIndices`), for the current reading (with `inReason` when insufficient) and for each map grid cell (the grid request includes 24 h of hourly data). The forecast model's PM2.5 is converted with the same 24-h rule.
+- **Beyond the index.** `indexFromTable` extends the top EPA band instead of clipping; NAQI's open-ended Severe continues the Very-poor slope. `formatIndex` shows "500+" (EU "100+"), `beyondIndexLabel` gives the computed value, the US "Beyond index" category (rank 5) keeps the Hazardous health rules, `gaugeFraction` (`lib/gauge.ts`) pins the pointer, `niceYMax` (`lib/chart-scale.ts`) extends chart axes and `rampColor` gives the heatmap a distinct colour.
 - **`lib/aqi.ts`** recomputes the US AQI with the EPA May 2024 breakpoints and proper averaging windows (24 h PM, 8 h O₃ and CO, 1 h NO₂ and SO₂) as a visible cross-check. It also provides the EEA PM2.5 index and unit conversions (25 °C, 1 atm).
 - **`lib/aqi-categories.ts`** is the single source of truth for categories:
   - official colours, plus a text colour checked to WCAG AA (unit-tested);
@@ -96,6 +100,8 @@ Details and live backtest numbers are in the README.
 
 ## 6. Alert engine
 
+- **Phase 9:** current-reading rules use the headline in effect on the rule's scale (`readingFor` in `hooks/useAlertEngine.ts`: station median / nearest / model under the saved data-source setting). Stations older than 3 h are ignored, so the model is used and the event's `source` says so. Values above 500 fire as "500+ (computed N)". Forecast rules are model-based and say that they may under-estimate.
+
 - **Rules** (`lib/alerts.ts`) are stored in localStorage and validated on every read. Each rule covers:
   - a city;
   - a metric: AQI or a pollutant's sub-index, always on a stated scale;
@@ -111,6 +117,10 @@ Details and live backtest numbers are in the README.
   - permission is requested only from a click;
   - quiet hours suppress only the system notification.
 - **Limits:** alerts run only while an AirIQ tab is open. There is no push server.
+
+### Map layers (Phase 9)
+
+Stations are the primary map layer (model badges muted beneath them). `lib/heat-blend.ts` chooses the heatmap samples: **Blended** uses fresh stations where ≥ 5 are in view and model grid points only more than 15 km from any station; **Stations only**; **Model only**. Stations are blended only on the US AQI layer (they are US AQI); the legend states which source drives which part. Station popups fetch `/api/station?id=` for the dominant pollutant (WAQI index values are never shown as concentrations) and show the nearest model grid value.
 
 ## 7. Service worker
 
@@ -128,6 +138,8 @@ Details and live backtest numbers are in the README.
 - **Back online:** `ConnectivityStatus` shows "Back online. Refreshing data…" and revalidates every SWR key.
 
 ## 8. Assistant
+
+Phase 9: `get_current_aqi`, `get_health_advice` and `compare_cities` return the headline in effect (source, reason, observation time), the station summary (count, median, highest, nearest), the model value, `stationVsModelPercent` and India NAQI (with `beyondIndex`/`display: "500+"`). `find_safe_windows` adds a `forecastNote` when stations read > 25% above the model. The system prompt says to state both station and model values when they differ, to prefer stations for "is it safe" questions, and to say plainly when a value is beyond the index. The grounding guard accepts index claims from `median`, `highest`, `nearest`, `naqi`, `headline`, `modelValue` and `display` fields, and still rejects distances and counts as AQI.
 
 - **Route:** `/api/assistant` (POST) streams Server-Sent Events.
 - **Model client:** `lib/assistant/gemini.ts` wraps the `@google/genai` SDK. It retries 5xx and timeouts, and applies a 45 s per-call timeout. If the main model hits its quota (429), it retries once on the backup model.
