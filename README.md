@@ -1,5 +1,7 @@
 # AirIQ: Real-Time Air Quality Intelligence
 
+**Live demo: [https://air-iq-omega.vercel.app](https://air-iq-omega.vercel.app)**
+
 Built for the **BREATHE BETTER** hackathon. AirIQ shows live air quality for any place on Earth: a real-time AQI dashboard, an interactive pollution map with heatmaps, history, forecasts, health advice, smart alerts and an AI assistant. It uses public data only (Open-Meteo / Copernicus CAMS, plus optional WAQI or OpenAQ ground stations), works with **no API keys**, and labels where every number comes from. Where ground stations exist, the headline is **station-first** (median of fresh stations within 15 km), and it offers three scales: **US AQI, European AQI and India NAQI** (computed by AirIQ per CPCB).
 
 > General information, not medical advice. See [/about](app/about/page.tsx) in the app for sources, licences, methods and limitations.
@@ -126,7 +128,7 @@ All variables are **optional**. They are validated once at startup in `lib/env.t
 | `GEMINI_MODEL` | Optional | Override the model | `gemini-3.6-flash` |
 | `GEMINI_FALLBACK_MODEL` | Optional | Backup model used once on a quota error; `off` disables it | `gemini-3.5-flash-lite` |
 | `GEMINI_BASE_URL` | Optional, testing only | Send Gemini calls to a mock server | Google's API |
-| `SITE_URL` | Optional (set in production) | Absolute base for Open Graph image links | `http://localhost:3000` |
+| `SITE_URL` | Optional (set in production) | Absolute base for Open Graph image links. The live demo uses `https://air-iq-omega.vercel.app` | `http://localhost:3000` |
 | `AIRIQ_BUILD_VERSION` | Optional, build time | Service-worker cache version | The build timestamp |
 
 `/about` shows which optional features are on for the running server.
@@ -176,6 +178,8 @@ Each phase was also verified in headless Chrome against the production build wit
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs install, typecheck, lint, tests and the production build on every push and pull request. No keys are needed.
 
 ## Deployment
+
+**Live demo:** [https://air-iq-omega.vercel.app](https://air-iq-omega.vercel.app) (Vercel, with `SITE_URL=https://air-iq-omega.vercel.app`).
 
 1. **Vercel** (simplest): import the repository, then set `SITE_URL` and any optional keys in Project → Environment Variables. Builds use `npm run build`. Vercel compresses API responses automatically.
 2. **Any Node host:** `npm ci && npm run build && npm start` (port 3000, or `-p`). Put a reverse proxy (nginx, Caddy) in front for HTTPS and gzip/brotli. `next start` compresses pages and static files but **not** route-handler JSON (see Decisions).
