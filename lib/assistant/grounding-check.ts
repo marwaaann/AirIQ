@@ -18,6 +18,8 @@ export interface Claim {
   kind: "index" | "measure";
   /** Used as a comparison/threshold ("above 150"), not asserted as a reading. */
   comparison: boolean;
+  /** Text around the number (same sentence), for scale/source checks. */
+  context?: string;
 }
 
 const COMPARISON_BEFORE = /(?:above|below|over|under|exceed\w*|threshold(?:\s+of)?|than|limit(?:\s+of)?|at\s+least|at\s+most|[<>≤≥])\s*$/i;
@@ -65,7 +67,17 @@ export function extractClaims(text: string): Claim[] {
     const intPart = m[1].replace(/,/g, "");
     const value = Number(`${intPart}${m[2] ? `.${m[2]}` : ""}`);
     if (!Number.isFinite(value)) continue;
-    out.push({ raw: m[0], value, decimals: m[2]?.length ?? 0, kind: measure ? "measure" : "index", comparison: COMPARISON_BEFORE.test(before) });
+    const start = Math.max(0, Math.max(masked.lastIndexOf(". ", m.index - 1), masked.lastIndexOf("\n", m.index - 1)) + 1);
+    const endDot = masked.slice(m.index + m[0].length).search(/\.\s|\n/);
+    const end = endDot === -1 ? masked.length : m.index + m[0].length + endDot;
+    out.push({
+      raw: m[0],
+      value,
+      decimals: m[2]?.length ?? 0,
+      kind: measure ? "measure" : "index",
+      comparison: COMPARISON_BEFORE.test(before),
+      context: text.slice(start, end),
+    });
   }
   return out;
 }
@@ -100,9 +112,24 @@ export function collectNumbers(results: readonly unknown[]): FoundNumber[] {
 const INDEX_PATH = /aqi|mean|max|min|average|threshold|insights|median|highest|nearest|naqi|headline|modelValue|display/i;
 const NOT_INDEX_PATH = /\.(?:lat|lon|population|whoGuideline|hours\w*|distanceKm|freshStationsWithin15km|stationCount|stationVsModelPercent|rank)$|pollutants/i;
 
+/**
+ * A model NAQI the tools flagged as NOT the city's NAQI (station-based NAQI
+ * unavailable, or the model fails the consistency check) is returned under
+ * `modelNaqiEstimate`. A NAQI claim may cite it only when the same sentence
+ * calls it a model estimate; "Delhi's NAQI is 188" is rejected.
+ */
+const RESTRICTED_NAQI_PATH = /\.modelNaqiEstimate\.|\.indiaNaqi\.(?:consistencyWarning|reason|instruction)$/;
+const NAQI_CONTEXT = /\bnaqi\b|national (?:air quality )?index|india(?:n)? (?:air quality )?index/i;
+const MODEL_CONTEXT = /\bmodel|estimat/i;
+
 function candidatesFor(claim: Claim, numbers: readonly FoundNumber[]): number[] {
   if (claim.kind === "measure") return numbers.map((n) => n.value);
-  return numbers.filter((n) => INDEX_PATH.test(n.path) && !NOT_INDEX_PATH.test(n.path)).map((n) => n.value);
+  const ctx = claim.context ?? "";
+  const blockRestricted = NAQI_CONTEXT.test(ctx) && !MODEL_CONTEXT.test(ctx);
+  return numbers
+    .filter((n) => INDEX_PATH.test(n.path) && !NOT_INDEX_PATH.test(n.path))
+    .filter((n) => !(blockRestricted && RESTRICTED_NAQI_PATH.test(n.path)))
+    .map((n) => n.value);
 }
 
 /** A claim is supported if some tool value rounds to it (half a unit in its last shown decimal). */

@@ -3,7 +3,7 @@
 import useSWR from "swr";
 
 import { FORECAST_REFRESH_MS, forecastUrl, historyUrl, useAir } from "@/hooks/useCity";
-import { useNearbyStations } from "@/hooks/useHeadline";
+import { useNearbyStations, useStationNaqi } from "@/hooks/useHeadline";
 import { apiFetch } from "@/lib/fetcher";
 import { parseCitySlug, prettifySlugName } from "@/lib/slug";
 import type { ForecastResponse, HistoryResponse } from "@/types/api";
@@ -21,10 +21,14 @@ export function compareCityFromSlug(slug: string, knownName?: string): CompareCi
   return { slug, name: knownName ?? prettifySlugName(p.name), latitude: p.latitude, longitude: p.longitude };
 }
 
-/** Current, nearby stations, history and forecast for one compared city. Each request fails independently. */
-export function useCompareCity(city: CompareCityRef | null, range: 7 | 30 | 90) {
+/**
+ * Current, nearby stations, history and forecast for one compared city, plus
+ * station-based NAQI when `withNaqi` (NAQI scale). Each request fails independently.
+ */
+export function useCompareCity(city: CompareCityRef | null, range: 7 | 30 | 90, withNaqi = false) {
   const air = useAir(city?.latitude ?? null, city?.longitude ?? null);
   const near = useNearbyStations(city?.latitude ?? null, city?.longitude ?? null);
+  const naqi = useStationNaqi(city?.latitude ?? null, city?.longitude ?? null, withNaqi);
   const history = useSWR<HistoryResponse, Error>(city ? historyUrl(city.latitude, city.longitude, range) : null, apiFetch, {
     revalidateOnFocus: false,
     keepPreviousData: true,
@@ -33,7 +37,7 @@ export function useCompareCity(city: CompareCityRef | null, range: 7 | 30 | 90) 
     revalidateOnFocus: false,
     refreshInterval: FORECAST_REFRESH_MS,
   });
-  return { city, air, near, history, forecast };
+  return { city, air, near, naqi, history, forecast };
 }
 
 export type CompareCityData = ReturnType<typeof useCompareCity>;

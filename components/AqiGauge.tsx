@@ -73,11 +73,13 @@ interface AqiGaugeProps {
   timezone: string;
   /** How the headline was chosen, e.g. "Median of 18 stations within 15 km · highest 531 at Anand Vihar (9 km) · latest 18:00 IST". */
   subtitle?: string;
+  /** Shown instead of "This source did not report…" when there is no value. */
+  emptyText?: string;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
 
-export function AqiGauge({ value, category, scale, time, timezone, subtitle, onRefresh, refreshing = false }: AqiGaugeProps) {
+export function AqiGauge({ value, category, scale, time, timezone, subtitle, emptyText, onRefresh, refreshing = false }: AqiGaugeProps) {
   const rawId = useId();
   const prefix = `g${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const now = useNow(30_000);
@@ -154,7 +156,7 @@ export function AqiGauge({ value, category, scale, time, timezone, subtitle, onR
           <p className="max-w-md text-center text-sm text-muted">{category.health}</p>
         </>
       ) : (
-        <p className="text-sm text-muted">This source did not report a {scaleName} value for this hour.</p>
+        <p className="text-sm text-muted">{emptyText ?? `This source did not report a ${scaleName} value for this hour.`}</p>
       )}
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted">

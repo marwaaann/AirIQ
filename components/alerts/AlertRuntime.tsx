@@ -9,7 +9,7 @@ import { AlertIcon } from "@/components/icons";
 import { AIR_REFRESH_MS, airUrl, FORECAST_REFRESH_MS, forecastUrl } from "@/hooks/useCity";
 import { evaluateCity, useAlertEngine, type CityGroup } from "@/hooks/useAlertEngine";
 import { dataSourceStore } from "@/hooks/useDataSource";
-import { useNearbyStations } from "@/hooks/useHeadline";
+import { useNearbyStations, useStationNaqi } from "@/hooks/useHeadline";
 import { useStoredValue } from "@/lib/storage";
 import { showBrowserNotification } from "@/hooks/useNotificationPermission";
 import { apiFetch } from "@/lib/fetcher";
@@ -32,14 +32,17 @@ function CityWatcher({ group, tick }: { group: CityGroup; tick: number }) {
   // Stations decide the headline (Auto mode), so wait until the station request has settled.
   const near = useNearbyStations(group.latitude, group.longitude);
   const [mode] = useStoredValue(dataSourceStore);
-  const stationsSettled = near.data !== undefined || near.error !== undefined || mode === "model";
+  // NAQI rules: station-based NAQI from concentrations (OpenAQ); wait for it too.
+  const naqi = useStationNaqi(group.latitude, group.longitude, group.needsNaqi && mode !== "model");
+  const naqiSettled = !group.needsNaqi || mode === "model" || naqi.data !== undefined || naqi.error !== undefined;
+  const stationsSettled = (near.data !== undefined || near.error !== undefined || mode === "model") && naqiSettled;
   const rulesSig = useMemo(() => JSON.stringify(group.rules), [group.rules]);
 
   useEffect(() => {
     if (!air.data && !forecast.data) return;
     if (!stationsSettled) return;
     const rules = JSON.parse(rulesSig) as CityGroup["rules"];
-    const events = evaluateCity(rules, air.data, forecast.data, Date.now(), near.data, near.error, mode);
+    const events = evaluateCity(rules, air.data, forecast.data, Date.now(), near.data, near.error, mode, { data: naqi.data, error: naqi.error });
     for (const ev of events) {
       const href = `/city/${ev.citySlug}`;
       pushToast({
@@ -51,7 +54,7 @@ function CityWatcher({ group, tick }: { group: CityGroup; tick: number }) {
       });
       if (!ev.suppressed) void showBrowserNotification(ev.title, ev.message, ev.id, href, () => router.push(href));
     }
-  }, [air.data, forecast.data, near.data, near.error, stationsSettled, mode, tick, rulesSig, router]);
+  }, [air.data, forecast.data, near.data, near.error, naqi.data, naqi.error, stationsSettled, mode, tick, rulesSig, router]);
 
   return null;
 }

@@ -1,0 +1,353 @@
+{
+ "meta": {
+  "name": "openaq-api",
+  "website": "/",
+  "page": 1,
+  "limit": 100,
+  "found": 2
+ },
+ "results": [
+  {
+   "id": 6951,
+   "name": "Murthal, Sonipat - HSPCB",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 8529,
+    "name": "Haryana State Pollution Control Board"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 1,
+     "name": "N/A"
+    },
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 19989,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 14258138,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 14258139,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 20035,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 14258140,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 14341887,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 20082,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 14258141,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 14258142,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 20056,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 14258143,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 20013,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 14258144,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 14258145,
+     "name": "so2 ppb",
+     "parameter": {
+      "id": 101,
+      "name": "so2",
+      "units": "ppb",
+      "displayName": "SO₂"
+     }
+    },
+    {
+     "id": 20066,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    },
+    {
+     "id": 14258146,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 14341888,
+     "name": "wind_direction deg",
+     "parameter": {
+      "id": 22,
+      "name": "wind_direction",
+      "units": "deg",
+      "displayName": "Wind direction"
+     }
+    },
+    {
+     "id": 14341889,
+     "name": "wind_speed m/s",
+     "parameter": {
+      "id": 34,
+      "name": "wind_speed",
+      "units": "m/s",
+      "displayName": "Wind speed"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 29.0272,
+    "longitude": 77.0621
+   },
+   "licenses": null,
+   "bounds": [
+    77.0621,
+    29.0272,
+    77.0621,
+    29.0272
+   ],
+   "distance": 5937.47078841,
+   "datetimeFirst": {
+    "utc": "2019-02-13T00:15:00Z",
+    "local": "2019-02-13T05:45:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:15:00Z",
+    "local": "2026-11-15T11:45:00+05:30"
+   }
+  },
+  {
+   "id": 10906,
+   "name": "Murthal, Sonipat - HSPCB",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 163,
+    "name": "caaqm"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 36568,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 36567,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 36565,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 36557,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 36556,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 36553,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 29.027199999999997,
+    "longitude": 77.0621
+   },
+   "licenses": null,
+   "bounds": [
+    77.0621,
+    29.027199999999997,
+    77.0621,
+    29.027199999999997
+   ],
+   "distance": 5937.47078841,
+   "datetimeFirst": {
+    "utc": "2020-01-02T08:00:00Z",
+    "local": "2020-01-02T13:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2022-10-16T16:00:00Z",
+    "local": "2022-10-16T21:30:00+05:30"
+   }
+  }
+ ]
+}

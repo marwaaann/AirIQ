@@ -6,7 +6,8 @@ import { UpstreamError } from "@/lib/http";
 import { boxAround, nearbyList } from "@/lib/nearby";
 import { getOpenAqStationNaqi, getOpenAqStations } from "@/lib/openaq";
 import { getWaqiStationDetail, getWaqiStations, type WaqiStationDetail } from "@/lib/waqi";
-import type { NearbyStationsResponse, StationsResponse } from "@/types/api";
+import { STATION_NAQI_RADIUS_KM } from "@/lib/station-naqi";
+import type { NearbyStationsResponse, StationNaqiResponse, StationsResponse } from "@/types/api";
 
 /** Optional keys, read only on the server via lib/env.ts. Empty strings count as missing. */
 function key(name: "WAQI_TOKEN" | "OPENAQ_API_KEY"): string | null {
@@ -59,36 +60,46 @@ export async function getStations(b: Bounds): Promise<StationsResponse> {
 }
 
 /**
- * Stations within `radiusKm` of a point, nearest first (capped), plus a
- * station-based India NAQI from OpenAQ concentrations when OPENAQ_API_KEY is
- * set. Never throws: a failing feed becomes status "error" so the UI can fall
- * back to the model with a visible note.
+ * Stations within `radiusKm` of a point, nearest first (capped). Never
+ * throws: a failing feed becomes status "error" so the UI can fall back to the
+ * model with a visible note. Station-based NAQI has its own route
+ * (/api/station-naqi) so the US AQI headline never waits for OpenAQ.
  */
 export async function getNearbyStations(lat: number, lon: number, radiusKm: number): Promise<NearbyStationsResponse> {
   const fetchedAt = new Date().toISOString();
   const sources = configuredStationSources();
   if (!sources.waqi && !sources.openaq) {
-    return { status: "not-configured", source: "none", stations: [], radiusKm, stationNaqi: null, note: "Ground stations: not configured", fetchedAt };
+    return { status: "not-configured", source: "none", stations: [], radiusKm, note: "Ground stations: not configured", fetchedAt };
   }
   let base: StationsResponse;
   try {
     base = await getStations(boxAround(lat, lon, radiusKm));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "station feed failed";
-    return { status: "error", source: "none", stations: [], radiusKm, stationNaqi: null, note: msg, fetchedAt };
+    return { status: "error", source: "none", stations: [], radiusKm, note: msg, fetchedAt };
   }
   const stations = nearbyList(base.stations, lat, lon, radiusKm);
-  let stationNaqi = null;
+  return { status: "ok", source: base.source, stations, radiusKm, note: base.note, fetchedAt };
+}
+
+/**
+ * India NAQI from station concentrations (OpenAQ). Never throws for upstream
+ * failures: no key → "not-configured", OpenAQ failing → "error".
+ */
+export async function getStationNaqi(lat: number, lon: number, signal?: AbortSignal): Promise<StationNaqiResponse> {
+  const fetchedAt = new Date().toISOString();
+  const empty = { method: null, value: null, count: 0, checked: 0, median: null, nearest: null, highest: null, latestObservedAt: null, radiusKm: STATION_NAQI_RADIUS_KM, stations: [], fetchedAt };
   const openaqKey = key("OPENAQ_API_KEY");
-  if (openaqKey) {
-    try {
-      stationNaqi = await getOpenAqStationNaqi(lat, lon, openaqKey, radiusKm);
-    } catch {
-      // Station NAQI is optional: the model-based NAQI is used instead.
-      stationNaqi = null;
-    }
+  if (!openaqKey) {
+    return { ...empty, status: "not-configured", source: "none", note: "Station concentrations (OpenAQ) are not configured on this server." };
   }
-  return { status: "ok", source: base.source, stations, radiusKm, stationNaqi, note: base.note, fetchedAt };
+  try {
+    return await getOpenAqStationNaqi(lat, lon, openaqKey, signal);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    const msg = err instanceof Error ? err.message : "OpenAQ failed";
+    return { ...empty, status: "error", source: "openaq", note: msg };
+  }
 }
 
 /** Station popup detail (WAQI only); null when WAQI is not configured. */

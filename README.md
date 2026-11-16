@@ -112,6 +112,8 @@ npm run build && npm start      # production server on http://localhost:3000 (se
 
 For development, use `npm run dev` instead of the last line. The service worker is not registered in dev.
 
+Keys go in `.env.local` (git-ignored), never in `.env.example`. Run `npm run hooks:install` once per clone to enable the pre-commit secret check (`scripts/check-secrets.mjs`, also run in CI and by `npm run check`). It fails if `.env.example` has any value after `=`, or if a tracked file contains a key-shaped string (`AIza…`, 32+ character hex, high-entropy base64). It reports only the file, line and kind, never the value. A deliberate test string can carry `secret-scan: allow` on its line.
+
 ## Environment variables
 
 All variables are **optional**. They are validated once at startup in `lib/env.ts` (logged as on/off, never with values). A missing or invalid value never crashes the app: the feature switches off and the UI says why. Keys are read only on the server.
@@ -119,7 +121,7 @@ All variables are **optional**. They are validated once at startup in `lib/env.t
 | Variable | Required? | What it unlocks | Without it |
 | --- | --- | --- | --- |
 | `WAQI_TOKEN` | Optional | The station-first headline, "Stations near you", station map markers and the blended heatmap (preferred source). [Free token](https://aqicn.org/data-platform/token/) | Falls back to OpenAQ, or the model with a visible "No nearby station data" note |
-| `OPENAQ_API_KEY` | Optional | Ground stations from OpenAQ (backup source) and the **station-based** India NAQI from a station's own concentrations. [Free key](https://explore.openaq.org/register) | No OpenAQ fallback; NAQI is model-based |
+| `OPENAQ_API_KEY` | Optional | **Enables station-based NAQI**: India NAQI computed from ground stations' own concentrations (median of up to 15 stations within 15 km). Also the backup ground-station source for the map. [Free key](https://explore.openaq.org/register) | Where stations drive the headline, NAQI shows "India NAQI from stations unavailable" with the model value only as a secondary estimate; elsewhere NAQI is model-based. No OpenAQ map fallback |
 | `GEMINI_API_KEY` | Optional | The AI assistant. [Free key](https://aistudio.google.com/apikey) | "Assistant not configured"; everything else works |
 | `GEMINI_MODEL` | Optional | Override the model | `gemini-3.6-flash` |
 | `GEMINI_FALLBACK_MODEL` | Optional | Backup model used once on a quota error; `off` disables it | `gemini-3.5-flash-lite` |
@@ -139,7 +141,8 @@ All variables are **optional**. They are validated once at startup in `lib/env.t
 | `GET /api/weather?lat=&lon=&days=7\|30\|90` | Open-Meteo Weather | Hourly temperature, humidity, wind, pressure, precipitation, boundary layer height. Cached 30 min |
 | `GET /api/grid?south=&west=&north=&east=&zoom=` | Open-Meteo Air Quality (one batched multi-location call) | ≤ 64 snapped grid points for the map. Cached 10 min; 400 on inverted or oversized bounds |
 | `GET /api/stations?south=&west=&north=&east=&zoom=` | WAQI `/map/bounds/` → OpenAQ v3 | Map viewport mode. `{ source: "none" }` when no key is set. Cached 10 min |
-| `GET /api/stations?lat=&lon=[&radius=15]` | WAQI `/map/bounds/` → OpenAQ v3 (+ OpenAQ hourly concentrations for NAQI) | Nearby mode: stations within the radius, nearest first (≤ 40), with distance and observation time, plus `stationNaqi` when OpenAQ is set. A failing feed returns `status: "error"` (HTTP 200) so the page falls back to the model. Cached 10 min |
+| `GET /api/stations?lat=&lon=[&radius=15]` | WAQI `/map/bounds/` → OpenAQ v3 | Nearby mode: stations within the radius, nearest first (≤ 40), with distance and observation time. A failing feed returns `status: "error"` (HTTP 200) so the page falls back to the model. Cached 10 min |
+| `GET /api/station-naqi?lat=&lon=` | OpenAQ v3 `/locations`, `/locations/{id}/latest`, `/sensors/{id}/hours` | India NAQI from station concentrations: per station (PM2.5/PM10 24 h means, gases' latest hour), the median across stations with enough data (≥ 3, else the nearest), highest, count, observation times. ≤ 15 stations (CPCB first), ≤ 46 upstream requests per city through a shared 50/min limiter, each cached 10 min; a cancelled request starts no further upstream calls. `status: "not-configured" \| "none" \| "error"` with HTTP 200 when unavailable |
 | `GET /api/station?id=waqi-123` | WAQI `/feed/@uid/` | Popup detail: dominant pollutant, observation time, per-pollutant **index** values. Cached 10 min |
 | `GET /api/geocode?q=&count=&lang=` | Open-Meteo Geocoding | City search. Cached 24 h |
 | `GET /api/assistant` | n/a | `{ configured, model, fallbackModel }`, never the key |
@@ -166,8 +169,9 @@ The unit tests cover:
 - shared-link settings, storage validation, environment validation;
 - the assistant's tool loop, grounding guard and fallback model;
 - Phase 9: station selection (≥ 3 stations median, single station, too far, too old, none, token missing, feed error), the 25% divergence note, NAQI sub-indices at every CPCB breakpoint edge and the CPCB worked example, averaging and minimum-data rules, station-based NAQI unit conversion, beyond-index values in categories, gauge, chart axes, heatmap colours and alerts, heatmap blending, health rules at the top rank, scale and data-source switching in shared links.
+- Phase 9b: OpenAQ response parsing on responses recorded from live calls, per-station NAQI (24 h PM means, the 16-hour and 3-pollutant rules, stale data, unit conversion), the median/nearest rule across stations, CPCB-first station choice, WAQI matching, the consistency warning including the Delhi case (stations 248 vs model NAQI 188), "unavailable" and its advice basis, the older-reading edges (3 h, 12 h, 10 km, 25%), the rate limiter and the grounding guard's restricted model NAQI.
 
-Each phase was also verified in headless Chrome against the production build with live data. The Phase 8 run is recorded in [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md) and the Phase 9 run (stations, NAQI, beyond-index) in [docs/PHASE9-REPORT.md](docs/PHASE9-REPORT.md).
+Each phase was also verified in headless Chrome against the production build with live data. The Phase 8 run is recorded in [docs/PHASE8-REPORT.md](docs/PHASE8-REPORT.md), the Phase 9 run (stations, NAQI, beyond-index) in [docs/PHASE9-REPORT.md](docs/PHASE9-REPORT.md) and the Phase 9b run (station-based NAQI, older readings) in [docs/PHASE9B-REPORT.md](docs/PHASE9B-REPORT.md).
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs install, typecheck, lint, tests and the production build on every push and pull request. No keys are needed.
 
@@ -200,7 +204,7 @@ AirIQ shows the required credits in the footer of every page, on the map, and in
 ## Limitations
 
 - **Grid data is modelled, not measured.** CAMS cells are about 11 km (Europe) to 45 km (elsewhere) and smooth out local hot spots, so AirIQ prefers fresh ground stations for the headline. Stations are optional, vary widely in coverage, often report 1–3 h late, and publish a US AQI only (WAQI), so the European AQI and (without OpenAQ) the NAQI come from the model.
-- **NAQI is AirIQ's calculation**, not CPCB's bulletin, and was not compared with the official bulletin directly. History, forecast and map NAQI always use model concentrations.
+- **NAQI is AirIQ's calculation**, not CPCB's bulletin, and was not compared with the official bulletin directly. Station-based NAQI uses each station's PM2.5/PM10 24-hour means but the gases' latest hour (not CPCB's 24 h / 8 h means), to stay inside OpenAQ's free rate limit. History, forecast and map NAQI always use model concentrations.
 - **Alerts only run while an AirIQ tab is open.** There is no push server.
 - **Offline data is the last saved copy**, always labelled with its time, and alerts never run on it. A view never opened online is not available offline.
 - **History is limited** to about 92 days (Open-Meteo), and the weather archive can be shorter.
@@ -259,6 +263,18 @@ These change every hour with new data. The UI always shows the current numbers a
 - **Episodes are never hidden by a smoother scale.** The banner fires on the headline (US ≥ 201, NAQI Very poor/Severe, EU Very poor+) and also when nearby stations read US 201+ while the headline is model-based (EU/NAQI scales or "Model only").
 - **NAQI colours** follow CPCB's green → dark-red legend with AirIQ hex values chosen for WCAG AA text contrast; Very poor uses white text on `#d7191c` (5.2:1).
 - **Heatmap zero-size guard.** The intermittent `IndexSizeError` seen in the Phase 8 tour (canvas measured 0 px for a frame) is now skipped instead of thrown.
+
+### Phase 9b: station-based NAQI and older readings
+
+- **The contradiction.** With stations driving the headline (Delhi: US AQI 248, median of 18), NAQI was computed from model concentrations and showed 188 "Moderately polluted", lower than the US scale for the same air. Now NAQI comes from the stations' own concentrations (OpenAQ), as the median of up to 15 stations within 15 km.
+- **Gases from the latest hour.** PM2.5 and PM10 use each station's 24-hour mean with CPCB's 16-hour rule; NO₂, SO₂, CO and O₃ use the station's latest hour (CPCB uses 24 h / 8 h means). Fetching hours for every gas would be up to 7 requests per station (about 106 per city) against OpenAQ's free limit of 60 a minute; the latest-hour call costs one. In PM episodes, PM sets the index. The deviation is stated on /about, in the station table and in the assistant's data.
+- **Unavailable rather than wrong.** When stations drive the US headline but there is no station-based NAQI (no key, no data, too few hours), the gauge says "India NAQI from stations unavailable" and the model value appears only as a secondary "model estimate, likely lower than station readings here". Health advice then uses the stations' US AQI; alerts use the model estimate and record that label on the event (so a NAQI rule can still fire); the assistant gets the value only as `modelNaqiEstimate`, which the grounding guard rejects as "the city's NAQI".
+- **Consistency check.** A shown model NAQI more than one category below the category implied by the stations' US AQI triggers a warning. The implied category goes through the PM2.5 concentration that US AQI corresponds to (assumes PM2.5 is the main pollutant, true in the Indian episodes this targets); it is only compared, never displayed as a value.
+- **Matching WAQI and OpenAQ** is for display only: within 0.5 km, or within 3 km sharing a distinctive name word ("Anand Vihar"); city and network words ("Delhi", "DPCC") do not count. The numbers sit side by side and are never mixed.
+- **Older readings (3–12 h).** The 3-hour rule still decides the headline. The nearest station within 10 km with a 3–12 h old reading gets its own labelled line under the gauge, with a note when it is more than 25% above the headline; older readings stay in the stations list only.
+- **A failed fetch is not "no data".** One city needs up to about 46 OpenAQ calls, so two cities opened within a minute can exhaust the free limit. Stations whose requests failed are marked `fetchFailed`; with fewer than 3 usable stations the result is "error" (temporarily unavailable, retried by the page after 75 s) instead of "none has enough data" or a single station standing in for the city. Found live: rate-limited Bengaluru showed the nearest station's 180, while the full median was 116.
+- **Secret guard.** The OpenAQ key was pasted into `.env.example` during this phase and moved to `.env.local` before any commit. To stop that recurring, a no-dependency scanner (`scripts/check-secrets.mjs`) runs as a pre-commit hook (`.githooks/`, enabled with `npm run hooks:install`), in `npm run check` and as the first CI step.
+- **Rate limit and cancellation.** One shared limiter (50/min, at most 20 s wait, 60 s back-off after a 429), 10-minute caches, ≤ 15 stations; station NAQI is fetched only on the NAQI scale, and a request nobody is waiting for any more is aborted and starts no further upstream calls.
 
 ### Phase 8: verification, polish, submission readiness
 

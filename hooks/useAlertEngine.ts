@@ -5,14 +5,21 @@ import { useSWRConfig } from "swr";
 
 import { CHECK_ALERTS_EVENT, eventsStore, ruleStatesStore, rulesStore } from "@/lib/alert-store";
 import { appendEvents, evaluateCityRules, type AlertEvent, type AlertRule, type ReadingSource } from "@/lib/alerts";
-import { sourceLabel, type DataSourceMode } from "@/lib/headline-source";
+import { naqiLabel, sourceLabel, type DataSourceMode, type HeadlineSource } from "@/lib/headline-source";
 import { staleMetaOf } from "@/lib/stale";
 import { useStoredValue } from "@/lib/storage";
 import { airUrl, forecastUrl } from "@/hooks/useCity";
-import { computeHeadline, nearbyStationsUrl } from "@/hooks/useHeadline";
-import type { AirResponse, ForecastResponse, NearbyStationsResponse } from "@/types/api";
+import { computeHeadline, nearbyStationsUrl, stationNaqiUrl } from "@/hooks/useHeadline";
+import type { AirResponse, ForecastResponse, NearbyStationsResponse, StationNaqiResponse } from "@/types/api";
 
 export const ALERT_RECHECK_MS = 10 * 60 * 1000;
+
+/** "Stations (median of 9; India NAQI from station concentrations)" or "Model (Open-Meteo; India NAQI from model concentrations)". */
+function naqiSourceLabel(h: HeadlineSource): string {
+  const full = naqiLabel(h);
+  const basis = h.naqiBasis === "stations" ? "India NAQI from station concentrations" : "India NAQI from model concentrations";
+  return full ? `${sourceLabel(h)}; ${basis}` : sourceLabel(h);
+}
 
 export interface CityGroup {
   key: string;
@@ -20,6 +27,8 @@ export interface CityGroup {
   longitude: number;
   rules: AlertRule[];
   needsForecast: boolean;
+  /** A current-AQI rule on the India NAQI scale: station-based NAQI is fetched. */
+  needsNaqi: boolean;
 }
 
 /**
@@ -37,9 +46,10 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
     for (const r of rules) {
       if (!r.enabled) continue;
       const key = `${r.city.latitude.toFixed(3)},${r.city.longitude.toFixed(3)}`;
-      const g = by.get(key) ?? { key, latitude: r.city.latitude, longitude: r.city.longitude, rules: [], needsForecast: false };
+      const g = by.get(key) ?? { key, latitude: r.city.latitude, longitude: r.city.longitude, rules: [], needsForecast: false, needsNaqi: false };
       g.rules.push(r);
       g.needsForecast ||= r.trigger.type === "forecast";
+      g.needsNaqi ||= r.metric === "aqi" && r.scale === "in" && r.trigger.type !== "forecast";
       by.set(key, g);
     }
     return [...by.values()];
@@ -55,6 +65,7 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
       for (const c of cities) {
         void mutate(airUrl(c.latitude, c.longitude));
         void mutate(nearbyStationsUrl(c.latitude, c.longitude));
+        if (c.needsNaqi) void mutate(stationNaqiUrl(c.latitude, c.longitude));
         if (c.needsForecast) void mutate(forecastUrl(c.latitude, c.longitude));
       }
       bump();
@@ -77,20 +88,37 @@ export function useAlertEngine(): { cities: CityGroup[]; tick: number } {
  * data-source setting). Station data older than 3 hours is ignored by the
  * headline selection, so a stale feed falls back to the model; the label of
  * whichever source was used is recorded on the event.
+ *
+ * India NAQI: the station-based NAQI when available; otherwise the headline
+ * rules (the model NAQI where stations do not drive the headline). When
+ * stations drive the headline but no station-based NAQI exists, the model
+ * estimate is used and recorded as such ("likely lower than station
+ * readings"), so a rule can still fire on it; while the station NAQI is
+ * still loading, NAQI rules wait.
  */
-export function readingFor(air: AirResponse, near: NearbyStationsResponse | undefined, nearError: unknown, mode: DataSourceMode, now: number): ReadingSource {
+export function readingFor(
+  air: AirResponse,
+  near: NearbyStationsResponse | undefined,
+  nearError: unknown,
+  mode: DataSourceMode,
+  now: number,
+  naqi?: { data?: StationNaqiResponse; error?: unknown },
+): ReadingSource {
   const us = computeHeadline(air, near, nearError, "us", mode, now);
-  const inn = computeHeadline(air, near, nearError, "in", mode, now);
+  const inn = computeHeadline(air, near, nearError, "in", mode, now, naqi);
   const eu = computeHeadline(air, near, nearError, "eu", mode, now);
+  const inUnavailable = inn.source === "unavailable";
+  const inAqi = inn.value ?? (inUnavailable && !inn.naqiPending ? inn.modelValue : null);
+  const inLabel = inUnavailable ? "Model estimate (India NAQI from stations unavailable; likely lower than station readings)" : naqiSourceLabel(inn);
   return {
     time: us.observedAt ?? air.current.time,
     usAqi: us.value,
     euAqi: eu.value,
-    inAqi: inn.value,
+    inAqi,
     usSubIndices: air.current.usSubIndices,
     euSubIndices: air.current.euSubIndices,
     inSubIndices: air.current.inSubIndices,
-    sourceLabels: { us: sourceLabel(us), eu: sourceLabel(eu), in: sourceLabel(inn) },
+    sourceLabels: { us: sourceLabel(us), eu: sourceLabel(eu), in: inLabel },
   };
 }
 
@@ -110,10 +138,11 @@ export function evaluateCity(
   near?: NearbyStationsResponse,
   nearError?: unknown,
   mode: DataSourceMode = "auto",
+  naqi?: { data?: StationNaqiResponse; error?: unknown },
 ): AlertEvent[] {
   const stale = staleMetaOf(air).isStale || staleMetaOf(forecast).isStale;
   if (stale) return [];
-  const current: ReadingSource | null = air ? readingFor(air, near, nearError, mode, now) : null;
+  const current: ReadingSource | null = air ? readingFor(air, near, nearError, mode, now, naqi) : null;
   const points = forecast?.official.points ?? null;
   let fresh: AlertEvent[] = [];
   ruleStatesStore.set((prev) => {

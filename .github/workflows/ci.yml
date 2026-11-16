@@ -23,6 +23,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Fails if .env.example has a value or a tracked file contains a key-shaped string (values are never printed).
+      - name: Secret scan
+        run: node scripts/check-secrets.mjs --worktree
+
       - name: Install
         run: npm ci
 

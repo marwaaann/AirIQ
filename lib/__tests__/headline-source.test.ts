@@ -16,6 +16,7 @@ import {
   summarizeStations,
   type HeadlineInput,
   type NearbyStation,
+  type StationNaqiSummary,
 } from "../headline-source.ts";
 import { boxAround, nearbyList, toNearby } from "../nearby.ts";
 import type { Station } from "../../types/air.ts";
@@ -119,16 +120,36 @@ describe("scales", () => {
     assert.match(h.stationNote ?? "", /US AQI scale/);
     assert.equal(h.showDivergenceNote, true);
   });
-  it("India NAQI: station-based when OpenAQ concentrations exist, else model-based", () => {
-    const naqi = { value: 304, stationName: "Murthal", distanceKm: 5.1, observedAt: ago(40) };
+  it("India NAQI: station-based when OpenAQ concentrations exist; unavailable (not the model) when stations drive the US headline", () => {
+    const ref = { id: "openaq-1", name: "Murthal", value: 304, dominant: "pm2_5" as const, distanceKm: 5.1, observedAt: ago(40) };
+    const naqi: StationNaqiSummary = {
+      status: "ok",
+      method: "nearest",
+      value: 304,
+      count: 1,
+      checked: 2,
+      median: 304,
+      nearest: ref,
+      highest: ref,
+      latestObservedAt: ago(40),
+      note: null,
+    };
     const s = selectHeadline(input({ scale: "in", model: { value: 89, usAqi: 150, time: "t" }, stations, stationNaqi: naqi }));
     assert.equal(s.source, "station");
     assert.equal(s.value, 304);
+    assert.equal(s.naqiBasis, "stations");
     assert.equal(sourceLabel(s), "Station: Murthal (5 km)");
-    const m = selectHeadline(input({ scale: "in", model: { value: 89, usAqi: 150, time: "t" }, stations }));
+    // Stations drive the US headline (3 fresh stations) but no station NAQI: unavailable, model only as an estimate.
+    const none = { ...naqi, status: "none" as const, method: null, value: null, count: 0, median: null, nearest: null, highest: null, latestObservedAt: null, note: "none" };
+    const u = selectHeadline(input({ scale: "in", model: { value: 89, usAqi: 150, time: "t" }, stations, stationNaqi: none }));
+    assert.equal(u.source, "unavailable");
+    assert.equal(u.value, null);
+    assert.equal(u.modelValue, 89);
+    // No stations at all: the model NAQI is the headline.
+    const m = selectHeadline(input({ scale: "in", model: { value: 89, usAqi: 150, time: "t" }, stationNaqi: none }));
     assert.equal(m.source, "model");
     assert.equal(m.value, 89);
-    assert.match(m.stationNote ?? "", /model concentrations/);
+    assert.equal(m.naqiBasis, "model");
     const forcedModel = selectHeadline(input({ scale: "in", mode: "model", model: { value: 89, usAqi: 150, time: "t" }, stationNaqi: naqi }));
     assert.equal(forcedModel.source, "model");
   });

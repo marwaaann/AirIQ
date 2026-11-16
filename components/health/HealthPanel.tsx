@@ -70,6 +70,11 @@ export function HealthPanel({ lat, lon, scale, alertHref }: { lat: number; lon: 
               <p className="text-xs text-muted" data-testid="advice-source">
                 For {SCALE_NAME[scale]} {formatIndex(headline.value, scale)} from {sourceLabel(headline)}.
               </p>
+            ) : headline && headline.source === "unavailable" && headline.stationUsAqi !== null ? (
+              <p className="text-xs text-muted" data-testid="advice-source">
+                For US AQI {formatIndex(headline.stationUsAqi, "us")} from the nearby stations: India NAQI from stations is unavailable, and the
+                model&rsquo;s NAQI is likely lower than station readings here.
+              </p>
             ) : null}
           </div>
 

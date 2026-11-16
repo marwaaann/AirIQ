@@ -204,7 +204,13 @@ export default async function AboutPage() {
             </p>
             <p className="mt-2">
               Station networks publish the US AQI only, so station values are never converted: the European AQI headline is always the model, and the India
-              NAQI comes from concentrations (station concentrations from OpenAQ when available, otherwise the model&rsquo;s).
+              NAQI comes from concentrations (see below).
+            </p>
+            <p className="mt-2">
+              <strong>Older station readings.</strong> A reading counts for the headline for 3 hours. When the nearest station within 10 km last reported 3 to 12
+              hours ago, its reading is shown under the gauge as a separate, labelled line (&ldquo;Last reading at Murthal, Sonipat (5.1 km): 187, 18:00 IST
+              (4.6 h ago)&rdquo;), with a note when it is more than 25% above the headline, because the model may then under-estimate current pollution.
+              Readings older than 12 hours appear only in the &ldquo;Stations near you&rdquo; list, with their age.
             </p>
           </div>
           <div>
@@ -232,11 +238,33 @@ export default async function AboutPage() {
               hours). The index needs at least three pollutants, one of them PM2.5 or PM10; otherwise AirIQ shows &ldquo;Not enough data&rdquo;. CPCB&rsquo;s
               Severe band is open-ended (&ldquo;250+&rdquo; for PM2.5): AirIQ continues the Very-poor slope, so Severe spans 401–500 over the same
               concentration width (PM2.5 251–380, PM10 431–510), and values above it are kept and shown as &ldquo;500+&rdquo;. CPCB lists the Very-poor and
-              Severe ozone breakpoints as 1-hour values; AirIQ applies the table to the 8-hour mean. NAQI is labelled <strong>model-based</strong> when it uses
-              Open-Meteo&rsquo;s concentrations and <strong>station-based</strong> when it uses a station&rsquo;s own concentrations from OpenAQ. NH₃ is in the
-              calculation but Open-Meteo does not provide it outside Europe. Sources:{" "}
+              Severe ozone breakpoints as 1-hour values; AirIQ applies the table to the 8-hour mean. NH₃ is in the calculation but Open-Meteo does not provide it
+              outside Europe. Sources:{" "}
               <Ext href="https://web.archive.org/web/20160804011654/http://cpcb.nic.in:80/About_AQI.pdf">About National Air Quality Index</Ext>,{" "}
               <Ext href="https://web.archive.org/web/20160417204306/http://www.cpcb.nic.in/FINAL-REPORT_AQI_.pdf">National Air Quality Index report</Ext>.
+            </p>
+            <p className="mt-2">
+              <strong>From what.</strong> Where ground stations exist (and OpenAQ is configured), AirIQ computes NAQI from the stations&rsquo; own
+              concentrations: OpenAQ republishes CPCB&rsquo;s real-time station data. For up to 15 stations within 15 km that reported in the last 3 hours
+              (CPCB-sourced stations first), each station&rsquo;s NAQI uses the 24-hour means of its hourly PM2.5 and PM10 (at least 16 of 24 hours) and the
+              latest hourly value of NO₂, SO₂, CO and O₃. CPCB averages the gases over 24 or 8 hours; AirIQ uses the latest hour for them to stay inside
+              OpenAQ&rsquo;s free rate limit (in particle episodes, PM sets the index). The city figure is the <strong>median</strong> of the stations with
+              enough data when there are at least 3, otherwise the nearest one. It is labelled &ldquo;India NAQI, computed by AirIQ from station concentrations
+              (median of N stations)&rdquo;; per-station values are listed under &ldquo;Stations near you&rdquo; next to the same site&rsquo;s WAQI US AQI,
+              for comparison only. Without stations nearby, NAQI is &ldquo;computed by AirIQ from model concentrations&rdquo; (Open-Meteo).
+            </p>
+            <p className="mt-2">
+              NAQI uses 24-hour averages for particles, so it can read higher than the latest hourly station values (WAQI&rsquo;s US AQI in
+              &ldquo;Stations near you&rdquo; is the latest hour). After a polluted morning, for example, the 24-hour mean stays high into the evening.
+            </p>
+            <p className="mt-2">
+              <strong>Never a contradictory NAQI.</strong> The model&rsquo;s smoothed concentrations can give a far lower NAQI than the stations around it:
+              on 14 Nov 2026 Delhi&rsquo;s stations read US AQI 248 (median of 18) while the model gave NAQI 188, &ldquo;Moderately polluted&rdquo;. So
+              when stations drive the US headline but no station-based NAQI is available, AirIQ shows &ldquo;India NAQI from stations unavailable&rdquo; and
+              gives the model value only as a secondary &ldquo;model estimate, likely lower than station readings here&rdquo;; health advice then uses the
+              stations&rsquo; US AQI. An automatic check also warns whenever a model NAQI shown is more than one NAQI category below the category the
+              stations&rsquo; US AQI implies (worked out through the PM2.5 concentration that US AQI corresponds to; used only to compare categories, never
+              shown as a value).
             </p>
           </div>
           <div>
@@ -325,8 +353,9 @@ export default async function AboutPage() {
           </li>
           <li>Open-Meteo keeps about 92 days of air-quality history, and its weather archive can be shorter, so long ranges may cover fewer days.</li>
           <li>
-            <strong>NAQI is AirIQ&rsquo;s calculation</strong>, not CPCB&rsquo;s official bulletin, and was not compared against it directly. From model
-            concentrations it inherits the model&rsquo;s smoothing; history, forecast and the map always use model concentrations.
+            <strong>NAQI is AirIQ&rsquo;s calculation</strong>, not CPCB&rsquo;s official bulletin, and was not compared against it directly. Station-based
+            NAQI uses the gases&rsquo; latest hour instead of CPCB&rsquo;s 24-hour/8-hour means. From model concentrations it inherits the model&rsquo;s
+            smoothing; history, forecast and the map always use model concentrations.
           </li>
           <li>
             The AI assistant can make mistakes. Its numbers are checked against the data it fetched, and unmatched figures are flagged, but you should check

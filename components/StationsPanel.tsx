@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 
 import { CategorySwatch } from "@/components/CategoryBadge";
 import { useNow } from "@/hooks/useNow";
-import { formatIndex, getUsCategory } from "@/lib/aqi-categories";
+import { formatIndex, getInCategory, getUsCategory } from "@/lib/aqi-categories";
 import { formatInZone, timeAgo } from "@/lib/format";
-import { HEADLINE_RADIUS_KM, isFresh, shortName, type HeadlineSource, type NearbyStation } from "@/lib/headline-source";
-import type { NearbyStationsResponse } from "@/types/api";
+import { haversineKm, HEADLINE_RADIUS_KM, isFresh, shortName, type HeadlineSource, type NearbyStation } from "@/lib/headline-source";
+import { NAQI_SHORT } from "@/lib/naqi";
+import { describeConcentration, matchStation, usableStations } from "@/lib/station-naqi";
+import type { NearbyStationsResponse, StationNaqiResponse } from "@/types/api";
 
 type SortKey = "aqi" | "name" | "distance" | "age";
 
@@ -26,6 +28,7 @@ function ageMs(s: NearbyStation, now: number): number {
 export function StationsPanel({
   near,
   error,
+  naqi,
   headline,
   lat,
   lon,
@@ -33,6 +36,8 @@ export function StationsPanel({
 }: {
   near: NearbyStationsResponse | undefined;
   error: unknown;
+  /** Station-based NAQI (NAQI scale only). */
+  naqi?: StationNaqiResponse;
   headline: HeadlineSource | null;
   lat: number;
   lon: number;
@@ -150,6 +155,87 @@ export function StationsPanel({
           </table>
         </div>
       )}
+      {naqi ? <StationNaqiTable naqi={naqi} waqi={near?.source === "waqi" ? near.stations : []} timeZone={timeZone} now={now} /> : null}
     </section>
+  );
+}
+
+/**
+ * India NAQI per OpenAQ station (computed by AirIQ from its concentrations),
+ * with the same site's WAQI US AQI beside it when one matches by
+ * name/coordinates. The two numbers are shown side by side, never mixed.
+ */
+function StationNaqiTable({ naqi, waqi, timeZone, now }: { naqi: StationNaqiResponse; waqi: readonly NearbyStation[]; timeZone: string; now: number }) {
+  const usable = new Set(usableStations(naqi.stations, now).map((s) => s.id));
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3" data-testid="station-naqi-panel">
+      <h3 className="text-sm font-semibold">India NAQI by station</h3>
+      <p className="text-xs text-muted">
+        Computed by AirIQ from each station&rsquo;s concentrations (OpenAQ): PM2.5/PM10 24-hour means, the gases&rsquo; latest hour, CPCB breakpoints.{" "}
+        {naqi.status === "ok"
+          ? `${naqi.count} of ${naqi.checked} stations have enough data${naqi.method === "median" ? `; median ${formatIndex(naqi.median, "in")}` : ""}.`
+          : (naqi.note ?? "")}{" "}
+        WAQI US AQI of the same site is shown for comparison only.
+      </p>
+      {naqi.stations.length ? (
+        <div className="max-h-80 overflow-auto">
+          <table className="w-full text-sm" data-testid="station-naqi-table">
+            <caption className="sr-only">India NAQI computed from station concentrations</caption>
+            <thead className="sticky top-0 bg-surface text-xs">
+              <tr className="border-b border-border text-left">
+                <th scope="col" className="py-1.5 pr-2 font-semibold">NAQI</th>
+                <th scope="col" className="py-1.5 pr-2 font-semibold">Station</th>
+                <th scope="col" className="py-1.5 pr-2 text-right font-semibold">WAQI US AQI</th>
+                <th scope="col" className="py-1.5 text-right font-semibold">Observed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {naqi.stations.map((s) => {
+                const m = matchStation(s, waqi, haversineKm);
+                const ok = usable.has(s.id);
+                const details = Object.entries(s.concentrations)
+                  .map(([p, c]) => describeConcentration(p as keyof typeof NAQI_SHORT, c!))
+                  .join("; ");
+                return (
+                  <tr key={s.id} className={`border-b border-border/60 align-top ${ok ? "" : "text-muted"}`} data-usable={ok ? "true" : "false"}>
+                    <td className="py-1.5 pr-2">
+                      {s.value !== null ? (
+                        <span className="inline-flex items-center gap-1.5 font-mono font-bold tabular-nums">
+                          <CategorySwatch category={getInCategory(s.value)} className="h-3 w-3" />
+                          {formatIndex(s.value, "in")}
+                        </span>
+                      ) : (
+                        "n/a"
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline" title={details || undefined}>
+                        {shortName(s.name)}
+                      </a>
+                      <span className="text-xs text-muted">
+                        {" "}
+                        · {s.distanceKm < 1 ? "<1" : s.distanceKm.toFixed(1)} km{s.provider ? ` · ${s.provider}` : ""}
+                        {s.dominant ? ` · main ${NAQI_SHORT[s.dominant]}` : ""}
+                      </span>
+                      {!ok && s.reason ? <span className="block text-xs">Not used: {s.reason}</span> : null}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right text-xs tabular-nums">{m ? `${formatIndex(m.aqi, "us")} (${shortName(m.name)})` : "no match"}</td>
+                    <td className="py-1.5 text-right text-xs tabular-nums">
+                      {s.observedAt ? (
+                        <time dateTime={s.observedAt}>
+                          {formatInZone(s.observedAt, timeZone, { hour: "2-digit", minute: "2-digit" })} · {timeAgo(s.observedAt, now)}
+                        </time>
+                      ) : (
+                        "n/a"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
   );
 }

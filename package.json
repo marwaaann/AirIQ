@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings --test \"lib/__tests__/*.test.ts\"",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "secrets": "node scripts/check-secrets.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check": "npm run secrets && npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",

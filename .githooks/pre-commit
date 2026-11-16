@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks commits that put a key in .env.example or key-shaped strings in tracked files.
+# Enabled per clone with: npm run hooks:install  (sets core.hooksPath to .githooks)
+exec node scripts/check-secrets.mjs

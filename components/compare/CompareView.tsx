@@ -99,10 +99,11 @@ export function CompareView() {
   };
 
   // Fixed number of hook calls (one per slot); empty slots pass null.
-  const s0 = useCompareCity(refs[0] ?? null, range);
-  const s1 = useCompareCity(refs[1] ?? null, range);
-  const s2 = useCompareCity(refs[2] ?? null, range);
-  const s3 = useCompareCity(refs[3] ?? null, range);
+  const withNaqi = scale === "in" && mode !== "model";
+  const s0 = useCompareCity(refs[0] ?? null, range, withNaqi);
+  const s1 = useCompareCity(refs[1] ?? null, range, withNaqi);
+  const s2 = useCompareCity(refs[2] ?? null, range, withNaqi);
+  const s3 = useCompareCity(refs[3] ?? null, range, withNaqi);
   const slots = [s0, s1, s2, s3].filter((s) => s.city !== null);
 
   const unit = metric === "aqi" ? SCALE_SHORT[scale] : `${POLLUTANT_INFO[metric].short} µg/m³`;
@@ -111,7 +112,7 @@ export function CompareView() {
   // The headline in effect per city (station median / nearest station / model), as on the city page.
   const heads = new Map<string, HeadlineSource>();
   for (const s of slots) {
-    if (s.air.data) heads.set(s.city!.slug, computeHeadline(s.air.data, s.near.data, s.near.error, scale, mode, now));
+    if (s.air.data) heads.set(s.city!.slug, computeHeadline(s.air.data, s.near.data, s.near.error, scale, mode, now, { data: s.naqi.data, error: s.naqi.error }));
   }
   const ranking = rankCleanest(slots.map((s) => ({ id: s.city!.slug, name: s.city!.name, value: heads.get(s.city!.slug)?.value ?? null })));
   const rankOf = (slug: string) => {

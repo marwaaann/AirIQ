@@ -1,4 +1,5 @@
-import type { NearbyStation, StationFeedStatus, StationNaqi } from "@/lib/headline-source";
+import type { NearbyStation, StationFeedStatus } from "@/lib/headline-source";
+import type { StationNaqiStation, StationNaqiSummary } from "@/lib/station-naqi";
 import type { AirQuality, AirSeries, GeoLocation, GridCell, Pollutant, Station, StationSource, WeatherSeries } from "@/types/air";
 import type { PollutantKey } from "@/lib/aqi-categories";
 
@@ -54,9 +55,20 @@ export interface NearbyStationsResponse {
   /** Nearest first, within `radiusKm`, capped at 40. */
   stations: NearbyStation[];
   radiusKm: number;
-  /** India NAQI from a station's own concentrations (OpenAQ), when available. */
-  stationNaqi: StationNaqi | null;
   note?: string;
+  fetchedAt: string;
+}
+
+/**
+ * GET /api/station-naqi?lat=&lon=: India NAQI computed by AirIQ from ground
+ * stations' concentrations (OpenAQ). status "not-configured" without
+ * OPENAQ_API_KEY, "error" when OpenAQ fails (HTTP 200 either way).
+ */
+export interface StationNaqiResponse extends StationNaqiSummary {
+  source: "openaq" | "none";
+  radiusKm: number;
+  /** Every station queried, nearest first, with its NAQI or why it has none. */
+  stations: StationNaqiStation[];
   fetchedAt: string;
 }
 

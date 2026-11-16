@@ -1,0 +1,1549 @@
+{
+ "meta": {
+  "name": "openaq-api",
+  "website": "/",
+  "page": 1,
+  "limit": 100,
+  "found": 75,
+  "note": "subset of the live response recorded 2026-11-15T07:58Z; items unmodified"
+ },
+ "results": [
+  {
+   "id": 15,
+   "name": "IGI Airport",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 27,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 28,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 29,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 26,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 30,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.56,
+    "longitude": 77.094
+   },
+   "licenses": null,
+   "bounds": [
+    77.094,
+    28.56,
+    77.094,
+    28.56
+   ],
+   "distance": 12737.39769234,
+   "datetimeFirst": null,
+   "datetimeLast": null
+  },
+  {
+   "id": 17,
+   "name": "R K Puram, Delhi - DPCC",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 8524,
+    "name": "Delhi Pollution Control Committee"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    },
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 12234782,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 392,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 12234783,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 12234784,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 36,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 14340713,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 394,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 12234785,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 399,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12234786,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12234787,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 35,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 12234788,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 393,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    },
+    {
+     "id": 12234789,
+     "name": "so2 ppb",
+     "parameter": {
+      "id": 101,
+      "name": "so2",
+      "units": "ppb",
+      "displayName": "SO₂"
+     }
+    },
+    {
+     "id": 12234790,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 14340714,
+     "name": "wind_direction deg",
+     "parameter": {
+      "id": 22,
+      "name": "wind_direction",
+      "units": "deg",
+      "displayName": "Wind direction"
+     }
+    },
+    {
+     "id": 14340715,
+     "name": "wind_speed m/s",
+     "parameter": {
+      "id": 34,
+      "name": "wind_speed",
+      "units": "m/s",
+      "displayName": "Wind speed"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.563262,
+    "longitude": 77.186937
+   },
+   "licenses": null,
+   "bounds": [
+    77.186937,
+    28.563262,
+    77.186937,
+    28.563262
+   ],
+   "distance": 6012.85150593,
+   "datetimeFirst": {
+    "utc": "2016-02-05T14:55:00Z",
+    "local": "2016-02-05T20:25:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:30:00Z",
+    "local": "2026-11-15T12:00:00+05:30"
+   }
+  },
+  {
+   "id": 103,
+   "name": "Income Tax Office, Delhi - CPCB",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 169,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 13863,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 168,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 13862,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 13861,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.623499999999996,
+    "longitude": 77.2494
+   },
+   "licenses": null,
+   "bounds": [
+    77.2494,
+    28.623499999999996,
+    77.2494,
+    28.623499999999996
+   ],
+   "distance": 4091.645402,
+   "datetimeFirst": {
+    "utc": "2016-11-02T18:30:00Z",
+    "local": "2016-11-03T00:00:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2018-02-22T03:45:00Z",
+    "local": "2018-02-22T09:15:00+05:30"
+   }
+  },
+  {
+   "id": 235,
+   "name": "Anand Vihar, New Delhi - DPCC",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 8524,
+    "name": "Delhi Pollution Control Committee"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    },
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 385,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 12235605,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 12235606,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 382,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 12235607,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 14340864,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 380,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 12235608,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 381,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12235609,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 384,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 12235610,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 12235611,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 383,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    },
+    {
+     "id": 12235612,
+     "name": "so2 ppb",
+     "parameter": {
+      "id": 101,
+      "name": "so2",
+      "units": "ppb",
+      "displayName": "SO₂"
+     }
+    },
+    {
+     "id": 12235613,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 14340865,
+     "name": "wind_direction deg",
+     "parameter": {
+      "id": 22,
+      "name": "wind_direction",
+      "units": "deg",
+      "displayName": "Wind direction"
+     }
+    },
+    {
+     "id": 14340866,
+     "name": "wind_speed m/s",
+     "parameter": {
+      "id": 34,
+      "name": "wind_speed",
+      "units": "m/s",
+      "displayName": "Wind speed"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.646835,
+    "longitude": 77.316032
+   },
+   "licenses": null,
+   "bounds": [
+    77.316032,
+    28.646835,
+    77.316032,
+    28.646835
+   ],
+   "distance": 11084.23398086,
+   "datetimeFirst": {
+    "utc": "2016-02-05T14:15:00Z",
+    "local": "2016-02-05T19:45:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:15:00Z",
+    "local": "2026-11-15T11:45:00+05:30"
+   }
+  },
+  {
+   "id": 5404,
+   "name": "Pusa, Delhi - IMD",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 8537,
+    "name": "India Meteorological Department"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    },
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 14086,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 12234697,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 12234698,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 14084,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 12234699,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 14340700,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 12234700,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 14085,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12234701,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12234702,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 14087,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.639645,
+    "longitude": 77.146263
+   },
+   "licenses": null,
+   "bounds": [
+    77.146263,
+    28.639645,
+    77.146263,
+    28.639645
+   ],
+   "distance": 6765.93018927,
+   "datetimeFirst": {
+    "utc": "2017-09-15T06:00:00Z",
+    "local": "2017-09-15T11:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:30:00Z",
+    "local": "2026-11-15T12:00:00+05:30"
+   }
+  },
+  {
+   "id": 5509,
+   "name": "Anand Vihar, Delhi - DPCC",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 163,
+    "name": "caaqm"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 14519,
+     "name": "co µg/m³",
+     "parameter": {
+      "id": 4,
+      "name": "co",
+      "units": "µg/m³",
+      "displayName": "CO mass"
+     }
+    },
+    {
+     "id": 14523,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 14524,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 14522,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 14521,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 14520,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.647622000000002,
+    "longitude": 77.315809
+   },
+   "licenses": null,
+   "bounds": [
+    77.315809,
+    28.647622000000002,
+    77.315809,
+    28.647622000000002
+   ],
+   "distance": 11092.69292188,
+   "datetimeFirst": {
+    "utc": "2018-03-09T03:30:00Z",
+    "local": "2018-03-09T09:00:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2022-10-31T00:30:00Z",
+    "local": "2022-10-31T06:00:00+05:30"
+   }
+  },
+  {
+   "id": 5598,
+   "name": "Sector - 125, Noida, UP - UPPCB",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 8527,
+    "name": "Uttar Pradesh Pollution Control Board"
+   },
+   "provider": {
+    "id": 168,
+    "name": "CPCB"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 12235182,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 12235183,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 12235184,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 14340784,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 12235185,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 12235186,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 12235187,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 12235188,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 12235189,
+     "name": "so2 ppb",
+     "parameter": {
+      "id": 101,
+      "name": "so2",
+      "units": "ppb",
+      "displayName": "SO₂"
+     }
+    },
+    {
+     "id": 12235190,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 14340785,
+     "name": "wind_direction deg",
+     "parameter": {
+      "id": 22,
+      "name": "wind_direction",
+      "units": "deg",
+      "displayName": "Wind direction"
+     }
+    },
+    {
+     "id": 14340786,
+     "name": "wind_speed m/s",
+     "parameter": {
+      "id": 34,
+      "name": "wind_speed",
+      "units": "m/s",
+      "displayName": "Wind speed"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.5447608,
+    "longitude": 77.3231257
+   },
+   "licenses": null,
+   "bounds": [
+    77.3231257,
+    28.5447608,
+    77.3231257,
+    28.5447608
+   ],
+   "distance": 13541.53240718,
+   "datetimeFirst": {
+    "utc": "2025-02-18T20:15:00Z",
+    "local": "2025-02-19T01:45:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:30:00Z",
+    "local": "2026-11-15T12:00:00+05:30"
+   }
+  },
+  {
+   "id": 7434,
+   "name": "East Arjun Nagar, Delhi - CPCB",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 163,
+    "name": "caaqm"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 21624,
+     "name": "no2 µg/m³",
+     "parameter": {
+      "id": 5,
+      "name": "no2",
+      "units": "µg/m³",
+      "displayName": "NO₂ mass"
+     }
+    },
+    {
+     "id": 21625,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 21623,
+     "name": "so2 µg/m³",
+     "parameter": {
+      "id": 6,
+      "name": "so2",
+      "units": "µg/m³",
+      "displayName": "SO₂ mass"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.655601699999995,
+    "longitude": 77.2859318
+   },
+   "licenses": null,
+   "bounds": [
+    77.2859318,
+    28.655601699999995,
+    77.2859318,
+    28.655601699999995
+   ],
+   "distance": 8828.74243848,
+   "datetimeFirst": {
+    "utc": "2018-08-10T06:00:00Z",
+    "local": "2018-08-10T11:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2020-02-10T03:00:00Z",
+    "local": "2020-02-10T08:30:00+05:30"
+   }
+  },
+  {
+   "id": 8118,
+   "name": "New Delhi",
+   "locality": "India",
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4,
+    "name": "Unknown Governmental Organization"
+   },
+   "provider": {
+    "id": 119,
+    "name": "AirNow"
+   },
+   "isMobile": false,
+   "isMonitor": true,
+   "instruments": [
+    {
+     "id": 2,
+     "name": "Government Monitor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 23534,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.63576,
+    "longitude": 77.22445
+   },
+   "licenses": [
+    {
+     "id": 33,
+     "name": "US Public Domain",
+     "attribution": {
+      "name": "Unknown Governmental Organization",
+      "url": null
+     },
+     "dateFrom": "2016-01-30",
+     "dateTo": null
+    }
+   ],
+   "bounds": [
+    77.22445,
+    28.63576,
+    77.22445,
+    28.63576
+   ],
+   "distance": 2855.21754908,
+   "datetimeFirst": {
+    "utc": "2016-11-09T19:00:00Z",
+    "local": "2016-11-10T00:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T07:30:00Z",
+    "local": "2026-11-15T13:00:00+05:30"
+   }
+  },
+  {
+   "id": 2860223,
+   "name": "GK1 (Oberoi Terrace)",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 4136428,
+    "name": "Oberoi"
+   },
+   "provider": {
+    "id": 66,
+    "name": "AirGradient"
+   },
+   "isMobile": false,
+   "isMonitor": false,
+   "instruments": [
+    {
+     "id": 7,
+     "name": "Unknown AirGradient Sensor"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 9320365,
+     "name": "pm1 µg/m³",
+     "parameter": {
+      "id": 19,
+      "name": "pm1",
+      "units": "µg/m³",
+      "displayName": "PM1"
+     }
+    },
+    {
+     "id": 9320368,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 9320367,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 9320350,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 9320356,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 9320361,
+     "name": "um003 particles/cm³",
+     "parameter": {
+      "id": 125,
+      "name": "um003",
+      "units": "particles/cm³",
+      "displayName": "PM0.3 count"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.5500047,
+    "longitude": 77.2431058
+   },
+   "licenses": [
+    {
+     "id": 41,
+     "name": "CC BY 4.0",
+     "attribution": {
+      "name": "Oberoi",
+      "url": null
+     },
+     "dateFrom": "2023-07-15",
+     "dateTo": null
+    }
+   ],
+   "bounds": [
+    77.2431058,
+    28.5500047,
+    77.2431058,
+    28.5500047
+   ],
+   "distance": 7828.10347133,
+   "datetimeFirst": {
+    "utc": "2024-05-22T11:00:00Z",
+    "local": "2024-05-22T16:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T07:00:00Z",
+    "local": "2026-11-15T12:30:00+05:30"
+   }
+  },
+  {
+   "id": 6254663,
+   "name": "JNU, Delhi - DPCC",
+   "locality": null,
+   "timezone": "Asia/Kolkata",
+   "country": {
+    "id": 9,
+    "code": "IN",
+    "name": "India"
+   },
+   "owner": {
+    "id": 1,
+    "name": "OpenAQ admin"
+   },
+   "provider": {
+    "id": 1,
+    "name": "N/A"
+   },
+   "isMobile": false,
+   "isMonitor": false,
+   "instruments": [
+    {
+     "id": 1,
+     "name": "N/A"
+    }
+   ],
+   "sensors": [
+    {
+     "id": 15554698,
+     "name": "co ppb",
+     "parameter": {
+      "id": 102,
+      "name": "co",
+      "units": "ppb",
+      "displayName": "CO"
+     }
+    },
+    {
+     "id": 15554699,
+     "name": "no ppb",
+     "parameter": {
+      "id": 24,
+      "name": "no",
+      "units": "ppb",
+      "displayName": "NO"
+     }
+    },
+    {
+     "id": 15554700,
+     "name": "no2 ppb",
+     "parameter": {
+      "id": 15,
+      "name": "no2",
+      "units": "ppb",
+      "displayName": "NO₂"
+     }
+    },
+    {
+     "id": 15554701,
+     "name": "nox ppb",
+     "parameter": {
+      "id": 23,
+      "name": "nox",
+      "units": "ppb",
+      "displayName": "NOX"
+     }
+    },
+    {
+     "id": 15554702,
+     "name": "o3 µg/m³",
+     "parameter": {
+      "id": 3,
+      "name": "o3",
+      "units": "µg/m³",
+      "displayName": "O₃ mass"
+     }
+    },
+    {
+     "id": 15554703,
+     "name": "pm10 µg/m³",
+     "parameter": {
+      "id": 1,
+      "name": "pm10",
+      "units": "µg/m³",
+      "displayName": "PM10"
+     }
+    },
+    {
+     "id": 15554704,
+     "name": "pm25 µg/m³",
+     "parameter": {
+      "id": 2,
+      "name": "pm25",
+      "units": "µg/m³",
+      "displayName": "PM2.5"
+     }
+    },
+    {
+     "id": 15554705,
+     "name": "relativehumidity %",
+     "parameter": {
+      "id": 98,
+      "name": "relativehumidity",
+      "units": "%",
+      "displayName": "RH"
+     }
+    },
+    {
+     "id": 15554706,
+     "name": "so2 ppb",
+     "parameter": {
+      "id": 101,
+      "name": "so2",
+      "units": "ppb",
+      "displayName": "SO₂"
+     }
+    },
+    {
+     "id": 15554707,
+     "name": "temperature c",
+     "parameter": {
+      "id": 100,
+      "name": "temperature",
+      "units": "c",
+      "displayName": "Temperature (C)"
+     }
+    },
+    {
+     "id": 15554708,
+     "name": "wind_direction deg",
+     "parameter": {
+      "id": 22,
+      "name": "wind_direction",
+      "units": "deg",
+      "displayName": "Wind direction"
+     }
+    },
+    {
+     "id": 15554709,
+     "name": "wind_speed m/s",
+     "parameter": {
+      "id": 34,
+      "name": "wind_speed",
+      "units": "m/s",
+      "displayName": "Wind speed"
+     }
+    }
+   ],
+   "coordinates": {
+    "latitude": 28.540721,
+    "longitude": 77.168544
+   },
+   "licenses": null,
+   "bounds": [
+    77.168544,
+    28.540721,
+    77.168544,
+    28.540721
+   ],
+   "distance": 9024.56477572,
+   "datetimeFirst": {
+    "utc": "2026-02-27T17:00:00Z",
+    "local": "2026-02-27T22:30:00+05:30"
+   },
+   "datetimeLast": {
+    "utc": "2026-11-15T06:15:00Z",
+    "local": "2026-11-15T11:45:00+05:30"
+   }
+  }
+ ]
+}

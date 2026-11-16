@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { NaqiBasisNote, OlderReadingLine } from "@/components/NaqiNotes";
 import { ErrorState, Skeleton } from "@/components/states";
 import { StaleNotice } from "@/components/StaleNotice";
 import type { CompareCityData } from "@/hooks/useCompareCity";
@@ -77,10 +78,12 @@ export function CompareCard({
           {hs ? (
             <p className="text-xs font-medium" data-testid="compare-source">
               Source: {sourceLabel(hs)}
-              {hs.source !== "model" && hs.modelValue !== null ? ` · model ${formatIndex(hs.modelValue, scale)}` : ""}
+              {hs.source !== "model" && hs.source !== "unavailable" && hs.modelValue !== null ? ` · model ${formatIndex(hs.modelValue, scale)}` : ""}
             </p>
           ) : null}
-          {scale === "in" && value === null ? <p className="text-xs">Not enough data for NAQI.</p> : null}
+          {hs && scale === "in" ? <NaqiBasisNote headline={hs} compact /> : null}
+          {scale === "in" && value === null && hs?.source !== "unavailable" ? <p className="text-xs">Not enough data for NAQI.</p> : null}
+          {hs ? <OlderReadingLine headline={hs} timeZone={data.current.timezone} compact /> : null}
           <p className="text-sm">
             Main pollutant (model): <strong>{h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</strong>
           </p>

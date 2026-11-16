@@ -228,6 +228,9 @@ export const OpenAqLocationSchema = z.object({
   id: z.number(),
   name: z.string().nullable(),
   locality: z.string().nullable().optional(),
+  provider: z.object({ id: z.number().optional(), name: z.string().nullable().optional() }).nullable().optional(),
+  owner: z.object({ id: z.number().optional(), name: z.string().nullable().optional() }).nullable().optional(),
+  isMonitor: z.boolean().nullable().optional(),
   coordinates: OaqCoordinates,
   sensors: z.array(
     z.object({

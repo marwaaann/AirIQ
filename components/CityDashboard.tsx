@@ -12,6 +12,7 @@ import { DataSourceToggle } from "@/components/DataSourceToggle";
 import { EpisodeBanner } from "@/components/EpisodeBanner";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { HeadlineNotes } from "@/components/HeadlineNotes";
+import { NaqiBasisNote, OlderReadingLine } from "@/components/NaqiNotes";
 import { AdviceCard } from "@/components/health/AdviceCard";
 import { useAdvice } from "@/components/health/advice-common";
 import { HealthPanel } from "@/components/health/HealthPanel";
@@ -31,7 +32,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { formatIndex, getCategory, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME } from "@/lib/aqi-categories";
 import { accentStyle, headline } from "@/lib/aqi-display";
 import { placeClock } from "@/lib/format";
-import { headlineSubtitle, sourceLabel } from "@/lib/headline-source";
+import { adviceBasis, headlineSubtitle, sourceLabel } from "@/lib/headline-source";
 import { errorMessage } from "@/lib/fetcher";
 import { staleMetaOf } from "@/lib/stale";
 import { CITY_TABS, RANGES, cityShareUrl, type CityTab, type RangeParam } from "@/lib/share";
@@ -152,7 +153,7 @@ function CrossCheck({ data, scale }: { data: AirResponse; scale: AqiScale }) {
 export function CityDashboard({ place }: { place: CityPlace }) {
   const [scale] = useAqiScale();
   const [, setActiveCity] = useActiveCity();
-  const { air, near, headline: hs, mode } = useHeadline(place.latitude, place.longitude, scale);
+  const { air, near, naqi, headline: hs, mode } = useHeadline(place.latitude, place.longitude, scale);
   const { data, error, isLoading, isValidating, mutate } = air;
   const { label, resolved } = useReverseLabel(place.latitude, place.longitude, place.labelKind);
   const [tab, setTab] = useUrlParam<Tab>("tab", TABS, "overview");
@@ -292,25 +293,22 @@ export function CityDashboard({ place }: { place: CityPlace }) {
                 time={hs?.observedAt ?? data.current.time}
                 timezone={data.current.timezone}
                 subtitle={gaugeSubtitle}
+                emptyText={hs?.source === "unavailable" ? "No station-based India NAQI for this hour." : undefined}
                 onRefresh={() => {
                   void mutate();
                   void near.mutate();
+                  if (scale === "in") void naqi.mutate();
                 }}
                 refreshing={isValidating}
               />
-              {scale === "in" && value === null ? (
+              {scale === "in" && value === null && hs?.source !== "unavailable" ? (
                 <p className="text-center text-sm font-semibold" data-testid="naqi-insufficient">
                   Not enough data. {data.current.inReason}
                 </p>
               ) : null}
-              {scale === "in" && value !== null ? (
-                <p className="text-center text-xs text-muted" data-testid="naqi-basis">
-                  NAQI {hs?.source === "station" ? "station-based" : "model-based"}: computed by AirIQ from{" "}
-                  {hs?.source === "station" ? "the station's" : "model"} concentrations following CPCB&rsquo;s method; it may differ from
-                  CPCB&rsquo;s official bulletin.
-                </p>
-              ) : null}
+              {hs && scale === "in" ? <NaqiBasisNote headline={hs} /> : null}
               {hs ? <HeadlineNotes headline={hs} modelUsAqi={data.current.usAqi} /> : null}
+              {hs ? <OlderReadingLine headline={hs} timeZone={data.current.timezone} /> : null}
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 text-sm">
               <dl className="grid grid-cols-2 gap-3">
@@ -325,10 +323,11 @@ export function CityDashboard({ place }: { place: CityPlace }) {
               </dl>
               <CrossCheck data={data} scale={scale} />
             </div>
-            <AdviceCard advice={advice} sourceText={hs ? sourceLabel(hs) : null} onMore={() => setTab("health")} />
+            <AdviceCard advice={advice} sourceText={hs ? (adviceBasis(hs)?.label ?? sourceLabel(hs)) : null} onMore={() => setTab("health")} />
             <StationsPanel
               near={near.data}
               error={near.error}
+              naqi={scale === "in" ? naqi.data : undefined}
               headline={hs}
               lat={place.latitude}
               lon={place.longitude}

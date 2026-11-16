@@ -35,6 +35,8 @@ interface FetchJsonOptions<S extends z.ZodType> {
   timeoutMs?: number;
   /** Key for the in-process cache; defaults to the URL. Never include secrets. */
   cacheKey?: string;
+  /** Awaited before a real upstream request (not on a cache hit), e.g. a rate limiter. */
+  beforeFetch?: () => Promise<void>;
 }
 
 /**
@@ -44,6 +46,7 @@ interface FetchJsonOptions<S extends z.ZodType> {
 export async function fetchJson<S extends z.ZodType>(url: string, opts: FetchJsonOptions<S>): Promise<z.output<S>> {
   const revalidate = opts.revalidate ?? REVALIDATE_SECONDS;
   return cached(opts.cacheKey ?? url, revalidate, async () => {
+    if (opts.beforeFetch) await opts.beforeFetch();
     let res: Response;
     try {
       res = await fetch(url, {

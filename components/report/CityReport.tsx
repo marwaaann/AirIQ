@@ -16,7 +16,8 @@ import { StaleNotice } from "@/components/StaleNotice";
 import { useAqiScale } from "@/hooks/useAqiScale";
 import { forecastUrl, historyUrl, useAir } from "@/hooks/useCity";
 import { dataSourceStore } from "@/hooks/useDataSource";
-import { computeHeadline, useNearbyStations } from "@/hooks/useHeadline";
+import { computeHeadline, useNearbyStations, useStationNaqi } from "@/hooks/useHeadline";
+import { NaqiBasisNote, OlderReadingLine } from "@/components/NaqiNotes";
 import { useNow } from "@/hooks/useNow";
 import { useProfile } from "@/hooks/useProfile";
 import { beyondIndexLabel, formatIndex, getCategory, isBeyondIndex, POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_SHORT } from "@/lib/aqi-categories";
@@ -75,7 +76,8 @@ export function CityReport({ place }: { place: ReportPlace }) {
 
   const air = useAir(place.latitude, place.longitude);
   const near = useNearbyStations(place.latitude, place.longitude);
-  const hs = air.data ? computeHeadline(air.data, near.data, near.error, scale, mode, now) : null;
+  const naqi = useStationNaqi(place.latitude, place.longitude, scale === "in" && mode !== "model");
+  const hs = air.data ? computeHeadline(air.data, near.data, near.error, scale, mode, now, { data: naqi.data, error: naqi.error }) : null;
   const hist = useSWR<HistoryResponse, Error>(historyUrl(place.latitude, place.longitude, rangeDays), apiFetch, { revalidateOnFocus: false });
   const fc = useSWR<ForecastResponse, Error>(forecastUrl(place.latitude, place.longitude), apiFetch, { revalidateOnFocus: false });
   const advice = useAdvice(air.data, scale, hs, profile.id);
@@ -179,7 +181,7 @@ export function CityReport({ place }: { place: ReportPlace }) {
           {air.data ? (
             <p className="text-sm" data-testid="report-timestamp">
               Data for <strong>{formatPlaceTime(hs?.observedAt ?? air.data.current.time, air.data.current.timezone)}</strong> (
-              {hs && hs.source !== "model" ? "station observation" : "model hour"}), fetched {new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)}{" "}
+              {hs && (hs.source === "stations-median" || hs.source === "station") ? "station observation" : "model hour"}), fetched {new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)}{" "}
               UTC.
             </p>
           ) : null}
@@ -216,16 +218,15 @@ export function CityReport({ place }: { place: ReportPlace }) {
                   <p className="text-sm" data-testid="report-source">
                     Source: <strong>{sourceLabel(hs)}</strong>.{" "}
                     {headlineSubtitle(hs, (iso) => placeClock(iso, air.data!.current.timezone), (v) => formatIndex(v, scale))}
-                    {hs.source !== "model" && hs.modelValue !== null ? ` · model estimate ${formatIndex(hs.modelValue, scale)}` : ""}.
+                    {hs.source !== "model" && hs.source !== "unavailable" && hs.modelValue !== null ? ` · model estimate ${formatIndex(hs.modelValue, scale)}` : ""}.
                   </p>
                 ) : null}
                 {hs?.stationNote ? <p className="text-xs text-muted">{hs.stationNote}</p> : null}
-                {scale === "in" ? (
-                  <p className="text-xs text-muted">
-                    {value === null ? `Not enough data. ${air.data.current.inReason ?? ""} ` : ""}NAQI computed by AirIQ from{" "}
-                    {hs?.source === "station" ? "station" : "model"} concentrations (CPCB method); it may differ from CPCB&rsquo;s official bulletin.
-                  </p>
+                {scale === "in" && value === null && hs?.source !== "unavailable" ? (
+                  <p className="text-xs text-muted">Not enough data. {air.data.current.inReason ?? ""}</p>
                 ) : null}
+                {hs && scale === "in" ? <NaqiBasisNote headline={hs} compact /> : null}
+                {hs ? <OlderReadingLine headline={hs} timeZone={air.data.current.timezone} compact /> : null}
                 <p className="text-sm">Main pollutant (model): {h.dominant ? POLLUTANT_INFO[h.dominant].short : "n/a"}</p>
                 {category ? <p className="text-sm text-muted">{category.health}</p> : null}
               </Section>
@@ -381,8 +382,10 @@ export function CityReport({ place }: { place: ReportPlace }) {
               </p>
               <p>
                 <strong className="text-text">{DISCLAIMER}</strong>{" "}
-                {hs && hs.source !== "model"
+                {hs && (hs.source === "stations-median" || hs.source === "station")
                   ? "The headline comes from ground-station measurements; pollutant values, history and the forecast are model estimates."
+                  : hs && hs.source === "unavailable"
+                    ? "India NAQI from stations is unavailable; the model estimate shown is likely lower than station readings. Pollutant values, history and the forecast are model estimates."
                   : "Values are model estimates for the location, not station measurements."}{" "}
                 Generated by AirIQ
                 {air.data ? ` from data fetched ${new Date(air.data.fetchedAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : ""}.

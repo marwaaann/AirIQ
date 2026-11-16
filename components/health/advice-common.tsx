@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useProfile } from "@/hooks/useProfile";
 import { currentIndex } from "@/lib/aqi-display";
 import { healthAdvice, type AdviceResult } from "@/lib/health-advice";
-import type { HeadlineSource } from "@/lib/headline-source";
+import { adviceBasis, type HeadlineSource } from "@/lib/headline-source";
 import type { ProfileId } from "@/lib/profiles";
 import { localParts } from "@/lib/time";
 import type { AqiScale, Pollutant } from "@/types/air";
@@ -44,7 +44,9 @@ export function adviceFor(air: AirResponse, scale: AqiScale, aqi: number, profil
 /**
  * Advice for the headline in effect (station median, nearest station or
  * model; see lib/headline-source.ts) and the saved profile (or
- * `profileOverride`). Null when there is no index value.
+ * `profileOverride`). When the India NAQI from stations is unavailable the
+ * advice uses the stations' US AQI (never the lower model estimate). Null
+ * when there is no index value.
  */
 export function useAdvice(
   air: AirResponse | undefined,
@@ -54,9 +56,11 @@ export function useAdvice(
 ): AdviceResult | null {
   const [saved] = useProfile();
   const profileId = profileOverride ?? saved.id;
-  const value = headline ? headline.value : air ? currentIndex(air.current, scale) : null;
+  const basis = headline ? adviceBasis(headline) : null;
+  const value = headline ? (basis?.value ?? null) : air ? currentIndex(air.current, scale) : null;
+  const advScale = basis?.scale ?? scale;
   return useMemo(() => {
     if (!air || value === null) return null;
-    return adviceFor(air, scale, value, profileId);
-  }, [air, scale, value, profileId]);
+    return adviceFor(air, advScale, value, profileId);
+  }, [air, advScale, value, profileId]);
 }

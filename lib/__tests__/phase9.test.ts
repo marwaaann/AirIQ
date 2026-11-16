@@ -10,7 +10,7 @@ import { episodeActions, healthAdvice } from "../health-advice.ts";
 import { HEALTH_RULES } from "../health-rules.ts";
 import { selectHeadline, sourceLabel, type NearbyStation } from "../headline-source.ts";
 import { PROFILE_IDS, PROFILES } from "../profiles.ts";
-import type { AirResponse, NearbyStationsResponse } from "../../types/api.ts";
+import type { AirResponse, NearbyStationsResponse, StationNaqiResponse } from "../../types/api.ts";
 
 const NOW = Date.parse("2026-11-14T16:00:00Z");
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
@@ -215,12 +215,28 @@ function air(usAqi: number, inAqi: number | null = 300): AirResponse {
   };
 }
 
+const NOT_CONFIGURED_NAQI: StationNaqiResponse = {
+  status: "not-configured",
+  method: null,
+  value: null,
+  count: 0,
+  checked: 0,
+  median: null,
+  nearest: null,
+  highest: null,
+  latestObservedAt: null,
+  note: "Station concentrations (OpenAQ) are not configured on this server.",
+  source: "none",
+  radiusKm: 15,
+  stations: [],
+  fetchedAt: new Date(NOW).toISOString(),
+};
+
 function nearby(values: number[]): NearbyStationsResponse {
   return {
     status: "ok",
     source: "waqi",
     radiusKm: 15,
-    stationNaqi: null,
     fetchedAt: new Date(NOW).toISOString(),
     stations: values.map((v, i) => ({
       id: `waqi-${i}`,
@@ -246,6 +262,7 @@ function deps(usAqi: number, stations: number[] | "error", inAqi: number | null 
       if (stations === "error") throw new Error("feed down");
       return nearby(stations);
     },
+    stationNaqi: async () => NOT_CONFIGURED_NAQI,
     now: () => NOW,
   };
 }
@@ -262,7 +279,13 @@ describe("assistant tools with ground stations", () => {
     assert.equal(res.stations.highest.aqi, 440);
     assert.equal(res.model.usAqi.value, 177);
     assert.equal(res.stations.stationVsModelPercent, 39);
-    assert.equal(res.indiaNaqi.value, 300);
+    // Phase 9b: stations drive the headline and no station-based NAQI exists (no OpenAQ key):
+    // the model NAQI is only a labelled estimate, never the city's NAQI.
+    assert.equal(res.indiaNaqi.basis, "unavailable");
+    assert.equal(res.indiaNaqi.value, null);
+    assert.equal(res.indiaNaqi.label, "India NAQI from stations unavailable");
+    assert.equal(res.indiaNaqi.modelNaqiEstimate.value, 300);
+    assert.match(res.indiaNaqi.modelNaqiEstimate.label, /likely lower than station readings/);
     assert.match(res.indiaNaqi.computedBy, /may differ from CPCB/);
     assert.match(r.summary, /headline from Stations \(median of 4\)/);
   });
@@ -271,7 +294,7 @@ describe("assistant tools with ground stations", () => {
     const res = r.result as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.deepEqual({ v: res.headline.aqi.value, d: res.headline.aqi.display, b: res.headline.aqi.beyondIndex }, { v: 650, d: "500+", b: true });
     assert.equal(res.model.usAqi.display, "500+");
-    assert.equal(res.indiaNaqi.display, "500+");
+    assert.equal(res.indiaNaqi.modelNaqiEstimate.display, "500+");
   });
   it("a failing station feed falls back to the model with a note, never an error", async () => {
     const r = await runTool("get_current_aqi", { lat: 28.61, lon: 77.21 }, deps(177, "error"));
@@ -296,13 +319,15 @@ describe("assistant tools with ground stations", () => {
   it("the numeric guard accepts station median, highest, model and NAQI figures, and 500+", async () => {
     const r = await runTool("get_current_aqi", { lat: 28.61, lon: 77.21 }, deps(177, [205, 231, 260, 440]));
     const ok = checkGrounding(
-      "The median of 4 stations is US AQI 246 (Very Unhealthy); the highest is Anand Vihar at AQI 440, while the model estimate is AQI 177. India NAQI is 300.",
+      "The median of 4 stations is US AQI 246 (Very Unhealthy); the highest is Anand Vihar at AQI 440, while the model estimate is AQI 177. The model estimate of India NAQI is 300, likely lower than station readings.",
       [r.result],
       "Is it safe to run?",
     );
     assert.deepEqual(ok.unsupported, []);
     const beyond = await runTool("get_current_aqi", { lat: 28.61, lon: 77.21 }, deps(520, [610, 650, 700], 640));
     assert.deepEqual(checkGrounding("The stations report US AQI 500+ (beyond the index; computed 650).", [beyond.result], "q").unsupported, []);
+    // Phase 9b: the restricted model NAQI quoted as the city's NAQI is rejected.
+    assert.deepEqual(checkGrounding("Delhi's India NAQI is 300 (Very poor).", [r.result], "q").unsupported, ["300"]);
     const bad = checkGrounding("The median of the stations is US AQI 999.", [r.result], "q");
     assert.deepEqual(bad.unsupported, ["999"]);
     // A distance is not an AQI: "AQI 5" must not be supported by distanceKm 5.

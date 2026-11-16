@@ -11,7 +11,16 @@
 import { z } from "../zod.ts";
 
 import { POLLUTANT_INFO, POLLUTANT_ORDER, SCALE_NAME, formatIndex, getCategory, isBeyondIndex, type PollutantKey, type ScaleKey } from "../aqi-categories.ts";
-import { DATA_SOURCE_MODES, selectHeadline, shortName, sourceLabel, type DataSourceMode, type HeadlineSource } from "../headline-source.ts";
+import {
+  adviceBasis,
+  DATA_SOURCE_MODES,
+  naqiLabel,
+  selectHeadline,
+  shortName,
+  sourceLabel,
+  type DataSourceMode,
+  type HeadlineSource,
+} from "../headline-source.ts";
 import { dailyRanges } from "../forecast-insights.ts";
 import { healthAdvice } from "../health-advice.ts";
 import {
@@ -29,7 +38,7 @@ import { findSafeWindows } from "../safe-windows.ts";
 import { slugifyName } from "../slug.ts";
 import { datesEnding, formatHour, localParts } from "../time.ts";
 import type { AirSeries, GeoLocation } from "../../types/air.ts";
-import type { AirResponse, NearbyStationsResponse } from "../../types/api.ts";
+import type { AirResponse, NearbyStationsResponse, StationNaqiResponse } from "../../types/api.ts";
 
 export const SOURCE = "Open-Meteo / CAMS";
 
@@ -41,6 +50,8 @@ export interface AssistantDataLayer {
   sunTimes(lat: number, lon: number): Promise<{ sunrise: string; sunset: string }[] | null>;
   /** Ground stations within 15 km (WAQI/OpenAQ); status "error"/"not-configured" when unavailable. */
   nearbyStations(lat: number, lon: number): Promise<NearbyStationsResponse>;
+  /** India NAQI from station concentrations (OpenAQ); status "not-configured"/"error" when unavailable. */
+  stationNaqi(lat: number, lon: number): Promise<StationNaqiResponse>;
   now(): number;
 }
 
@@ -107,22 +118,93 @@ interface HeadlineBundle {
   air: AirResponse;
   near: NearbyStationsResponse | null;
   h: HeadlineSource;
+  /** The India NAQI headline (station-based, model or unavailable), when requested. */
+  naqi: HeadlineSource | null;
 }
 
-/** The same headline the city page shows: station-first on the US AQI, model on EU, NAQI from concentrations. */
-async function headlineFor(d: AssistantDataLayer, lat: number, lon: number, scale: ScaleKey, mode: DataSourceMode): Promise<HeadlineBundle> {
-  const [air, near] = await Promise.all([d.currentAir(lat, lon), d.nearbyStations(lat, lon).catch(() => null)]);
+const NAQI_ERROR: StationNaqiResponse = {
+  status: "error",
+  method: null,
+  value: null,
+  count: 0,
+  checked: 0,
+  median: null,
+  nearest: null,
+  highest: null,
+  latestObservedAt: null,
+  note: "the station concentration feed could not be reached.",
+  source: "none",
+  radiusKm: 15,
+  stations: [],
+  fetchedAt: "",
+};
+
+/**
+ * The same headline the city page shows: station-first on the US AQI, model
+ * on EU, NAQI from station concentrations (or "unavailable" with a model
+ * estimate). `withNaqi` also returns the NAQI headline for the US-scale tools.
+ */
+async function headlineFor(d: AssistantDataLayer, lat: number, lon: number, scale: ScaleKey, mode: DataSourceMode, withNaqi = false): Promise<HeadlineBundle> {
+  const needNaqi = (scale === "in" || withNaqi) && mode !== "model";
+  const [air, near, sn] = await Promise.all([
+    d.currentAir(lat, lon),
+    d.nearbyStations(lat, lon).catch(() => null),
+    needNaqi ? d.stationNaqi(lat, lon).catch(() => NAQI_ERROR) : Promise.resolve(null),
+  ]);
   const c = air.current;
-  const h = selectHeadline({
-    scale,
-    mode,
-    now: d.now(),
-    model: { value: pointValue(c, scale), usAqi: c.usAqi, time: c.time },
-    stations: near?.stations ?? [],
-    stationStatus: near ? near.status : "error",
-    stationNaqi: near?.stationNaqi ?? null,
-  });
-  return { air, near, h };
+  const at = (sc: ScaleKey) =>
+    selectHeadline({
+      scale: sc,
+      mode,
+      now: d.now(),
+      model: { value: pointValue(c, sc), usAqi: c.usAqi, time: c.time },
+      stations: near?.stations ?? [],
+      stationStatus: near ? near.status : "error",
+      stationNaqi: sn,
+    });
+  const h = at(scale);
+  return { air, near, h, naqi: scale === "in" ? h : withNaqi ? at("in") : null };
+}
+
+/**
+ * India NAQI for the model, labelled by source. When the station-based NAQI is
+ * unavailable or the model value fails the consistency check, the model value
+ * is returned ONLY as `modelNaqiEstimate` (the grounding guard rejects it
+ * when quoted as the city's NAQI) with the instruction not to present it so.
+ */
+function naqiBlock(n: HeadlineSource, timeZone: string, dominantIn: PollutantKey | null) {
+  const label = naqiLabel(n);
+  const computedBy = "AirIQ, following CPCB's method; may differ from CPCB's official bulletin";
+  if (n.naqiBasis === "stations") {
+    const sn = n.stationNaqi;
+    return {
+      basis: "stations",
+      label,
+      ...indexValue(n.value, "in"),
+      method: n.source === "stations-median" ? `median of ${n.stationCount} stations within 15 km` : `nearest station with enough data (${n.nearest ? shortName(n.nearest.name) : "station"})`,
+      stationsWithEnoughData: n.stationCount,
+      stationsChecked: sn?.checked ?? null,
+      highestStation: n.highest ? { name: shortName(n.highest.name), naqi: indexValue(n.highest.value, "in"), distanceKm: Math.round(n.highest.distanceKm * 10) / 10 } : null,
+      observedLocal: n.observedAt ? localStamp(n.observedAt, timeZone) : null,
+      averaging: "PM2.5/PM10 24-hour means of each station's hourly values; NO2, SO2, CO and O3 from each station's latest hour",
+      computedBy,
+    };
+  }
+  const restricted = n.naqiBasis === "unavailable" || n.consistencyWarning !== null;
+  const model = { ...indexValue(n.modelValue, "in"), mainPollutant: mainName(dominantIn), averaging: "model concentrations (24-h PM/NO2/SO2, 8-h CO/O3 means)" };
+  if (restricted) {
+    return {
+      basis: n.naqiBasis === "unavailable" ? "unavailable" : "model",
+      label,
+      value: null,
+      reason: n.stationNote,
+      consistencyWarning: n.consistencyWarning,
+      modelNaqiEstimate: { ...model, label: "model estimate, likely lower than station readings here" },
+      instruction: "Do NOT present modelNaqiEstimate as the city's India NAQI. Say station-based NAQI is unavailable (or that the model estimate is likely too low), and quote the station US AQI instead.",
+      computedBy,
+    };
+  }
+  return { basis: "model", label, ...model, computedBy, note: n.stationNote };
 }
 
 /** Station summary for the model: count, median, highest, nearest (US AQI as reported), and the gap to the model. */
@@ -143,6 +225,19 @@ function stationBlock(h: HeadlineSource, timeZone: string) {
     nearest: s.nearest ? st(s.nearest) : null,
     stationVsModelPercent: h.divergence === null ? null : Math.round(h.divergence * 100),
     note: h.stationNote,
+    olderReading: h.olderReading
+      ? {
+          name: h.olderReading.name.split(",").slice(0, 2).join(",").trim(),
+          usAqi: h.olderReading.value,
+          distanceKm: h.olderReading.distanceKm,
+          observedLocal: localStamp(h.olderReading.observedAt, timeZone),
+          ageHours: h.olderReading.ageHours,
+          moreThan25PercentAboveHeadline: h.olderReading.aboveReference,
+          note:
+            "Last reading of the nearest station within 10 km, older than 3 hours, so it is not used for the headline." +
+            (h.olderReading.aboveReference ? " It is more than 25% above the headline: the model may under-estimate current pollution." : ""),
+        }
+      : null,
   };
 }
 
@@ -228,7 +323,7 @@ export const FUNCTION_DECLARATIONS = [
   {
     name: "get_current_aqi",
     description:
-      "Current air quality at a location. Returns the HEADLINE in effect (station median, nearest station, or model, with its source, observation time and reason), a summary of ground stations within 15 km (count, median, highest, nearest; US AQI as reported), the model's US AQI and European AQI with categories, India NAQI computed by AirIQ from concentrations, the station-vs-model difference, model pollutant concentrations in µg/m³ with WHO guideline values, and local times. Values above the index top are flagged beyondIndex with display '500+'.",
+      "Current air quality at a location. Returns the HEADLINE in effect (station median, nearest station, or model, with its source, observation time and reason), a summary of ground stations within 15 km (count, median, highest, nearest; US AQI as reported), the model's US AQI and European AQI with categories, India NAQI computed by AirIQ (indiaNaqi.basis: 'stations' = median of station concentrations, 'model', or 'unavailable' with only a modelNaqiEstimate that must not be quoted as the city's NAQI), an olderReading (nearest station's 3–12 h old reading) when present, the station-vs-model difference, model pollutant concentrations in µg/m³ with WHO guideline values, and local times. Values above the index top are flagged beyondIndex with display '500+'.",
     parametersJsonSchema: { type: "object", properties: { ...LATLON, source: SOURCE_ARG }, required: ["lat", "lon"] },
   },
   {
@@ -374,9 +469,10 @@ async function toolResolveCity(a: z.infer<typeof ARG_SCHEMAS.resolve_city>, d: A
 }
 
 async function toolCurrent(a: z.infer<typeof ARG_SCHEMAS.get_current_aqi>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const { air, h } = await headlineFor(d, a.lat, a.lon, "us", a.source);
+  const { air, h, naqi } = await headlineFor(d, a.lat, a.lon, "us", a.source, true);
   const c = air.current;
   const dt = dataTime(c.time, c.timezone);
+  const nb = naqiBlock(naqi ?? h, c.timezone, c.dominantIn);
   return {
     ok: true,
     result: {
@@ -398,13 +494,7 @@ async function toolCurrent(a: z.infer<typeof ARG_SCHEMAS.get_current_aqi>, d: As
         usAqi: { ...indexValue(c.usAqi, "us"), mainPollutant: mainName(c.dominantUs) },
         europeanAqi: { ...indexValue(c.euAqi, "eu"), mainPollutant: mainName(c.dominantEu) },
       },
-      indiaNaqi: {
-        ...indexValue(c.inAqi, "in"),
-        mainPollutant: mainName(c.dominantIn),
-        basis: "model concentrations (24-h PM/NO2/SO2, 8-h CO/O3 means)",
-        computedBy: "AirIQ, following CPCB's method; may differ from CPCB's official bulletin",
-        note: c.inReason,
-      },
+      indiaNaqi: naqi ? nb : { basis: "model", label: "India NAQI, computed by AirIQ from model concentrations", ...indexValue(c.inAqi, "in"), mainPollutant: mainName(c.dominantIn), note: c.inReason },
       pollutants: pollutantTable(c.pollutants),
       pollutantsSource: "Open-Meteo (CAMS) model concentrations",
     },
@@ -415,7 +505,8 @@ async function toolCurrent(a: z.infer<typeof ARG_SCHEMAS.get_current_aqi>, d: As
       "stations (15 km)": h.summary.freshCount,
       "station median": h.summary.median,
       "model US AQI": c.usAqi,
-      "India NAQI": c.inAqi === null ? null : formatIndex(c.inAqi, "in"),
+      "India NAQI": naqi && naqi.value !== null ? `${formatIndex(naqi.value, "in")} (${naqi.naqiBasis === "stations" ? "stations" : "model"})` : naqi?.naqiBasis === "unavailable" ? "from stations unavailable" : c.inAqi === null ? null : `${formatIndex(c.inAqi, "in")} (model)`,
+      ...(h.olderReading ? { "older station reading": `${Math.round(h.olderReading.value)} (${h.olderReading.ageHours} h old)` } : {}),
       "PM2.5 µg/m³ (model)": c.pollutants.pm2_5 === null ? null : r1(c.pollutants.pm2_5),
     },
   };
@@ -520,11 +611,11 @@ async function toolForecast(a: z.infer<typeof ARG_SCHEMAS.get_forecast>, d: Assi
 }
 
 async function toolCompare(a: z.infer<typeof ARG_SCHEMAS.compare_cities>, d: AssistantDataLayer): Promise<ToolOutcome> {
-  const settled = await Promise.allSettled(a.cities.map((c) => headlineFor(d, c.lat, c.lon, "us", a.source)));
+  const settled = await Promise.allSettled(a.cities.map((c) => headlineFor(d, c.lat, c.lon, "us", a.source, true)));
   const rows = a.cities.map((c, i) => {
     const s = settled[i];
     if (s.status !== "fulfilled") return { name: c.name, status: "error" as const, error: "data source unavailable" };
-    const { air, h } = s.value;
+    const { air, h, naqi } = s.value;
     const cur = air.current;
     const dt = dataTime(cur.time, cur.timezone);
     return {
@@ -538,7 +629,7 @@ async function toolCompare(a: z.infer<typeof ARG_SCHEMAS.compare_cities>, d: Ass
       europeanAqi: indexValue(cur.euAqi, "eu"),
       // Both scales, explicitly: real Gemini once guessed the EU main pollutant when only the US one was returned.
       europeanMainPollutant: mainName(cur.dominantEu),
-      indiaNaqi: { ...indexValue(cur.inAqi, "in"), mainPollutant: mainName(cur.dominantIn), basis: "model concentrations, computed by AirIQ" },
+      indiaNaqi: naqiBlock(naqi ?? h, cur.timezone, cur.dominantIn),
       timezone: cur.timezone,
       dataTime: dt,
     };
@@ -559,7 +650,9 @@ async function toolCompare(a: z.infer<typeof ARG_SCHEMAS.compare_cities>, d: Ass
 async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: AssistantDataLayer): Promise<ToolOutcome> {
   const { air, h } = await headlineFor(d, a.lat, a.lon, a.scale, a.source);
   const c = air.current;
-  const aqi = h.value;
+  const basis = adviceBasis(h);
+  const aqi = basis?.value ?? null;
+  const advScale = basis?.scale ?? a.scale;
   if (aqi === null) {
     return {
       ok: true,
@@ -570,8 +663,8 @@ async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: A
   }
   const adv = healthAdvice({
     aqi,
-    scale: a.scale,
-    dominant: a.scale === "us" ? c.dominantUs : a.scale === "eu" ? c.dominantEu : c.dominantIn,
+    scale: advScale,
+    dominant: advScale === "us" ? c.dominantUs : advScale === "eu" ? c.dominantEu : c.dominantIn,
     pollutants: c.pollutants,
     profile: a.profile,
     localHour: localParts(c.time, c.timezone).hour,
@@ -582,15 +675,20 @@ async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: A
     ok: true,
     result: {
       status: "ok",
-      source: `AirIQ rules engine on the headline in effect (${sourceLabel(h)})`,
+      source: `AirIQ rules engine on the headline in effect (${basis?.label ?? sourceLabel(h)})`,
       profile: PROFILES[a.profile].label,
-      scale: SCALE_NAME[a.scale],
+      scale: SCALE_NAME[advScale],
       aqi: Math.round(aqi),
-      aqiDisplay: formatIndex(aqi, a.scale),
-      beyondIndex: isBeyondIndex(aqi, a.scale),
-      aqiSource: sourceLabel(h),
+      aqiDisplay: formatIndex(aqi, advScale),
+      beyondIndex: isBeyondIndex(aqi, advScale),
+      aqiSource: basis?.label ?? sourceLabel(h),
       aqiReason: h.reason,
-      modelValue: h.modelValue === null ? null : Math.round(h.modelValue),
+      ...(a.scale === "in" ? { indiaNaqi: naqiBlock(h, c.timezone, c.dominantIn) } : {}),
+      ...(a.scale === "in" && h.naqiBasis !== "unavailable" && h.modelValue !== null && h.consistencyWarning === null
+        ? { modelValue: Math.round(h.modelValue) }
+        : a.scale !== "in" && h.modelValue !== null
+          ? { modelValue: Math.round(h.modelValue) }
+          : {}),
       stations: stationBlock(h, c.timezone),
       category: adv.category.label,
       timezone: c.timezone,
@@ -604,7 +702,7 @@ async function toolAdvice(a: z.infer<typeof ARG_SCHEMAS.get_health_advice>, d: A
       disclaimer: "General information, not medical advice.",
     },
     summary: `Health advice (${PROFILES[a.profile].label}) for ${label(a.city, a.lat, a.lon)} using ${sourceLabel(h)}, data as of ${dt.local} ${dt.zone}`,
-    keyValues: { profile: PROFILES[a.profile].label, [SCALE_NAME[a.scale]]: formatIndex(aqi, a.scale), source: sourceLabel(h), category: adv.category.label, headline: adv.headline.text },
+    keyValues: { profile: PROFILES[a.profile].label, [SCALE_NAME[advScale]]: formatIndex(aqi, advScale), source: basis?.label ?? sourceLabel(h), category: adv.category.label, headline: adv.headline.text },
   };
 }
 
